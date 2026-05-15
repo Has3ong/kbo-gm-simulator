@@ -57,6 +57,9 @@ public class BrdcstSpnsrService {
 
         // 최초 계약 시에만 계약금 즉시 수익 반영 + 스태프 후보 생성 + AI 방송국 계약
         if (isFirstSelect) {
+            // 방어적 초기화: GameStartService Step 5를 거치지 않은 경우라도
+            // 모든 구단의 시작 현금 100억이 보장되도록 한다.
+            if (ssntYrForBrdcst != null) ensureInitialFinances(ssntYrForBrdcst);
             applyContractFee(spnsr);
             try {
                 stffHireService.onBrdcstSelected();
@@ -66,6 +69,22 @@ public class BrdcstSpnsrService {
             selectAiBroadcasters();
         }
         createBrdcstEvnt(spnsr);
+    }
+
+    /**
+     * 모든 구단의 시즌 시작 현금을 100억으로 초기화한다 (없는 경우만).
+     * 정상 흐름에서는 {@code GameStartService.Step 5}가 처리하지만,
+     * 데이터를 직접 적재한 케이스 등 누락 상황에 대비한 안전망.
+     */
+    private void ensureInitialFinances(int ssntYr) {
+        final long STARTING_CASH = 1_000_000L; // 100억 = 1,000,000 만원
+        int inserted = jdbcTemplate.update(
+            "INSERT IGNORE INTO TM_FNC_SSNT (TM_ID, SSNT_YR, STR_CASH, CUR_CASH, TOT_BDGT) " +
+            "SELECT TM_ID, ?, ?, ?, ? FROM TM",
+            ssntYr, STARTING_CASH, STARTING_CASH, STARTING_CASH);
+        if (inserted > 0) {
+            log.info("시즌 {}년 초기 현금(100억) 자동 초기화: {}개 팀", ssntYr, inserted);
+        }
     }
 
     private void selectAiBroadcasters() {

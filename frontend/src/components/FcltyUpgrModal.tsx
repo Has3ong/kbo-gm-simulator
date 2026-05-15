@@ -1,6 +1,6 @@
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
-  Button, Typography, Box, Divider, CircularProgress,
+  Button, Typography, Box, Divider, CircularProgress, Alert,
 } from '@mui/material'
 import type { FcltyUpgrCost } from '../types/team'
 import { useUpgradeFacility } from '../hooks/useTeams'
@@ -35,6 +35,11 @@ export default function FcltyUpgrModal({ open, onClose, tmId, cost, ciClr }: Pro
           <Row label="비용" value={`${cost.upgrCost?.toLocaleString()}만원`} bold />
           <Row label="공사 기간" value={`${cost.upgrDays}일`} />
         </Box>
+        {mutation.isError && (
+          <Alert severity="error" sx={{ mt: 1 }}>
+            {extractErrorMessage(mutation.error) ?? '업그레이드에 실패했습니다.'}
+          </Alert>
+        )}
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={mutation.isPending}>취소</Button>
@@ -50,6 +55,12 @@ export default function FcltyUpgrModal({ open, onClose, tmId, cost, ciClr }: Pro
       </DialogActions>
     </Dialog>
   )
+}
+
+function extractErrorMessage(err: unknown): string | null {
+  if (!err || typeof err !== 'object') return null
+  const anyErr = err as { response?: { data?: { message?: string } }, message?: string }
+  return anyErr.response?.data?.message ?? anyErr.message ?? null
 }
 
 function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {

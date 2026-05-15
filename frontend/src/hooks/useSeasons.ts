@@ -67,9 +67,13 @@ export function useAdvanceSeason(ssntYr: number) {
   return useMutation({
     mutationFn: () => seasonApi.advance(ssntYr),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: seasonKeys.one(ssntYr) })
-      qc.invalidateQueries({ queryKey: seasonKeys.advanceCheck(ssntYr) })
-      qc.invalidateQueries({ queryKey: seasonKeys.events(ssntYr) })
+      qc.invalidateQueries({ queryKey: ['seasons'] })
+      qc.invalidateQueries({ queryKey: ['teams'] })
+      qc.invalidateQueries({ queryKey: ['players'] })
+      qc.invalidateQueries({ queryKey: ['staffs'] })
+      qc.invalidateQueries({ queryKey: ['games'] })
+      qc.invalidateQueries({ queryKey: ['records'] })
+      qc.invalidateQueries({ queryKey: ['broadcast-sponsors'] })
     },
   })
 }
@@ -79,8 +83,9 @@ export function useAdvanceToSpring(ssntYr: number) {
   return useMutation({
     mutationFn: () => seasonApi.advanceToSpring(ssntYr),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: seasonKeys.one(ssntYr) })
-      qc.invalidateQueries({ queryKey: seasonKeys.advanceCheck(ssntYr) })
+      qc.invalidateQueries({ queryKey: ['seasons'] })
+      qc.invalidateQueries({ queryKey: ['teams'] })
+      qc.invalidateQueries({ queryKey: ['players'] })
     },
   })
 }

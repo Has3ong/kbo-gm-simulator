@@ -76,9 +76,8 @@ export function useUpgradeFacility(tmId: number, onSuccess?: () => void) {
   return useMutation({
     mutationFn: (fcltyTypeCd: string) => teamApi.upgradeFacility(tmId, fcltyTypeCd),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: teamKeys.facilities(tmId) })
-      qc.invalidateQueries({ queryKey: teamKeys.fcltyUpgrCosts(tmId) })
-      qc.invalidateQueries({ queryKey: teamKeys.facilityUpgrades(tmId) })
+      qc.invalidateQueries({ queryKey: ['teams', tmId] })
+      qc.invalidateQueries({ queryKey: ['seasons'] })
       onSuccess?.()
     },
   })
@@ -128,8 +127,8 @@ export function useExpandStadium(tmId: number, onSuccess?: () => void) {
   return useMutation({
     mutationFn: (expnStep: number) => teamApi.expandStadium(tmId, expnStep),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: teamKeys.stadium(tmId) })
-      qc.invalidateQueries({ queryKey: teamKeys.stdmExpnHistory(tmId) })
+      qc.invalidateQueries({ queryKey: ['teams', tmId] })
+      qc.invalidateQueries({ queryKey: ['seasons'] })
       onSuccess?.()
     },
   })

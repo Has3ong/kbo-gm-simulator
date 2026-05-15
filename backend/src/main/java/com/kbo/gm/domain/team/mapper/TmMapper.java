@@ -21,6 +21,10 @@ public interface TmMapper {
     List<FcltyUpgrCostCfgDao> findFcltyUpgrCosts(@Param("tmId") Long tmId);
     // 진행 중인 업그레이드 수 (동일 시설 중복 업그레이드 방지용)
     int countOngoingUpgr(@Param("tmId") Long tmId, @Param("fcltyTypeCd") String fcltyTypeCd);
+    // 현재 시즌 보유 현금 조회 (만원)
+    Long findCurCashCurSsnt(@Param("tmId") Long tmId);
+    // 시설 업그레이드 비용 차감 (CUR_CASH >= 비용일 때만 1행 수정; 부족 시 0 반환)
+    int deductFcltyCash(@Param("tmId") Long tmId, @Param("upgrCost") long upgrCost);
     // 시설 레벨 업데이트
     void updateFcltyLvl(@Param("tmId") Long tmId, @Param("fcltyTypeCd") String fcltyTypeCd, @Param("newLvl") int newLvl);
     // 업그레이드 이력 삽입

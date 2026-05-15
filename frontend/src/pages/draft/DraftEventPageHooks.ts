@@ -22,7 +22,6 @@ export function useDraftEventPage() {
   const ssntYr = currentGame?.ssntYr ?? CURRENT_SEASON_YEAR
 
   const [rosterOpen, setRosterOpen] = useState(false)
-  const [showPicked, setShowPicked] = useState(false)
   const [page, setPage] = useState(0)
   const [selectedPlayer, setSelectedPlayer] = useState<DraftPlayer | null>(null)
   const [pickConfirmOpen, setPickConfirmOpen] = useState(false)
@@ -45,16 +44,13 @@ export function useDraftEventPage() {
       .map(o => [o.drftPlrId!, { tmKrNm: o.tmShrtKrNm ?? o.tmKrNm, rnd: o.rnd }]),
   )
 
-  // Sort by estPotAblt desc, then apply picked filter
+  // Sort by estPotAblt desc
   const sortedPlayers = [...(players ?? [])].sort(
     (a, b) => (b.estPotAblt ?? 0) - (a.estPotAblt ?? 0),
   )
-  const filteredPlayers = showPicked
-    ? sortedPlayers
-    : sortedPlayers.filter(p => p.isPickYn !== 'Y')
 
-  const totalPages = Math.ceil(filteredPlayers.length / PAGE_SIZE)
-  const pagedPlayers = filteredPlayers.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+  const totalPages = Math.ceil(sortedPlayers.length / PAGE_SIZE)
+  const pagedPlayers = sortedPlayers.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   // Per-team picks: group PICKED orders by team
   const teamPicks = new Map<number, { tmId: number; tmKrNm: string; picks: DraftOrder[] }>()
@@ -85,17 +81,10 @@ export function useDraftEventPage() {
     })
   }
 
-  // Reset page when filter changes
-  function handleShowPickedChange(val: boolean) {
-    setShowPicked(val)
-    setPage(0)
-  }
-
   return {
     draft, isLoading, error,
     ssntYr, userTmId,
     rosterPlayers, rosterOpen, setRosterOpen,
-    showPicked, handleShowPickedChange,
     page, setPage, totalPages, pagedPlayers,
     pickedMap,
     teamPickList,

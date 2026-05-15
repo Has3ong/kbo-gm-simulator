@@ -1,12 +1,14 @@
 import { useState } from 'react'
-import { Link as RouterLink } from 'react-router-dom'
+import { useNavigate, Link as RouterLink } from 'react-router-dom'
 import {
   Box, Typography, Grid, Paper, Divider, Chip, IconButton,
   Table, TableBody, TableHead, TableRow, TableCell,
   LinearProgress, CircularProgress, Tooltip, Tabs, Tab,
   Select, MenuItem, FormControl, InputLabel, ToggleButtonGroup, ToggleButton,
+  Button, Dialog, DialogTitle, DialogContent, DialogActions, Alert,
 } from '@mui/material'
 import BuildIcon from '@mui/icons-material/Build'
+import PersonRemoveIcon from '@mui/icons-material/PersonRemove'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   ResponsiveContainer,
@@ -14,6 +16,8 @@ import {
 import { formatSalary } from '../../utils/format'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import { usePlayerDetailPage } from './PlayerDetailPageHooks'
+import { useReleaseForeignPlayer } from '../../hooks/usePlayers'
+import { useGame } from '../../contexts/GameContext'
 import { fmtIp, fmtStat } from '../../types/player'
 import type { PlrBatrSsntRec, PlrPtchSsntRec, PlrBatrMonRec, PlrPtchMonRec, PlrAbltSsnt, PlrAbltMon, PlrInjryHist } from '../../types/player'
 import { useTeamMeta } from '../../hooks/useTeamMeta'
@@ -31,6 +35,19 @@ export default function PlayerDetailPage() {
   } = usePlayerDetailPage()
 
   const [editOpen, setEditOpen] = useState(false)
+  const [releaseOpen, setReleaseOpen] = useState(false)
+  const navigate = useNavigate()
+  const { currentGame } = useGame()
+  const releaseMutation = useReleaseForeignPlayer(player?.plrId ?? 0, () => {
+    setReleaseOpen(false)
+    navigate('/players')
+  })
+  const canRelease =
+    !!player &&
+    player.plrFrgnYn === '1' &&
+    player.plrSttsCd === 'AT' &&
+    !!currentGame &&
+    player.tmId === currentGame.userTeamId
 
   if (isLoading) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 6 }}><CircularProgress /></Box>
   if (!player) return <Typography sx={{ color: 'error.main', mt: 2 }}>선수를 찾을 수 없습니다.</Typography>
@@ -49,6 +66,18 @@ export default function PlayerDetailPage() {
             <BuildIcon fontSize="small" />
           </IconButton>
         </Tooltip>
+        {canRelease && (
+          <Button
+            size="small"
+            variant="outlined"
+            color="error"
+            startIcon={<PersonRemoveIcon fontSize="small" />}
+            onClick={() => setReleaseOpen(true)}
+            sx={{ ml: 1 }}
+          >
+            외국인 계약 해지
+          </Button>
+        )}
       </Box>
       {player.plrEngNm && (
         <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>{player.plrEngNm}</Typography>
@@ -76,6 +105,13 @@ export default function PlayerDetailPage() {
         </InfoItem>
         <InfoItem label="종합능력치"><span style={{ fontWeight: 'bold' }}>{player.plrOvrlAblt?.toString() ?? '-'}</span></InfoItem>
         <InfoItem label="잠재능력치"><span style={{ fontWeight: 'bold' }}>{player.plrPotAblt?.toString() ?? '-'}</span></InfoItem>
+        <InfoItem label="드래프트">
+          <span style={{ fontWeight: 'bold' }}>
+            {player.plrDrftRnd != null && player.plrDrftNo != null
+              ? `${player.plrDrftRnd}라운드 ${player.plrDrftNo}순위`
+              : '-'}
+          </span>
+        </InfoItem>
       </Paper>
 
       <Tabs value={tabIndex} onChange={(_, v) => setTabIndex(v)} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
@@ -445,6 +481,32 @@ export default function PlayerDetailPage() {
         positions={positions ?? []}
         fatgCond={fatgCond}
       />
+
+      <Dialog open={releaseOpen} onClose={() => setReleaseOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>외국인 선수 계약 해지</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            <b>{player.plrNm}</b> 선수와의 계약을 해지하시겠습니까?
+          </Typography>
+          <Alert severity="warning" sx={{ mb: 1 }}>
+            방출된 선수는 즉시 로스터·라인업·로테이션·불펜에서 제외되며, 같은 시즌에 다른 외국인 선수를 영입할 수 있게 됩니다.
+          </Alert>
+          {releaseMutation.isError && (
+            <Alert severity="error" sx={{ mt: 1 }}>계약 해지에 실패했습니다.</Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReleaseOpen(false)} disabled={releaseMutation.isPending}>취소</Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={() => releaseMutation.mutate()}
+            disabled={releaseMutation.isPending}
+          >
+            {releaseMutation.isPending ? '처리 중...' : '계약 해지'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

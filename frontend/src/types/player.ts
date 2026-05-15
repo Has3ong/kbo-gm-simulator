@@ -4,6 +4,8 @@ export interface Player {
   plrEngNm: string | null
   plrHgt: number | null
   plrWgt: number | null
+  plrDrftRnd: number | null
+  plrDrftNo: number | null
   plrBatPtchHandCd: string | null
   plrAnslSal: number | null
   plrNtnlt: string | null

@@ -1474,7 +1474,7 @@ GAME (경기 기본 정보)
 |------|------|----|----------|------|
 | TM_ID | BIGINT FK→TM | ✓ | ✓ | 팀 ID |
 | SSNT_YR | INT | ✓ | ✓ | 시즌 연도 |
-| BRDCST_CD | VARCHAR(10) FK→BRDCST_SPNSR | | ✓ | 선택된 방송국 코드 |
+| BRDCST_CD | CHAR(3) FK→BRDCST_SPNSR | | ✓ | 선택된 방송국 코드 |
 | REG_DT | DATETIME | | | 계약 등록 일시 (DEFAULT NOW()) |
 
 > AI 팀 배정: 유저가 방송국을 최초 선택하는 시점에 모든 AI 팀에 랜덤 배정.

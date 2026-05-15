@@ -71,4 +71,7 @@ export const playerApi = {
     positions?: Record<string, number>
   }) =>
     client.put<ApiResponse<void>>(`/players/${plrId}/player-edit`, data).then((r) => r.data),
+
+  releaseForeign: (plrId: number) =>
+    client.delete<ApiResponse<void>>(`/players/${plrId}/release-foreign`).then((r) => r.data),
 }

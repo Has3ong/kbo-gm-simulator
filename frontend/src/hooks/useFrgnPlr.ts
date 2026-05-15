@@ -30,12 +30,21 @@ export function useMakeFrgnOffer(ssntYr: number) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: frgnPlrKeys.candidates(ssntYr) })
       qc.invalidateQueries({ queryKey: frgnPlrKeys.signedInfo(ssntYr) })
+      qc.invalidateQueries({ queryKey: ['seasons'] })
+      qc.invalidateQueries({ queryKey: ['teams'] })
+      qc.invalidateQueries({ queryKey: ['players'] })
     },
   })
 }
 
 export function useStopFrgnPlr(ssntYr: number) {
+  const qc = useQueryClient()
   return useMutation({
     mutationFn: () => frgnPlrApi.stop(ssntYr),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: frgnPlrKeys.candidates(ssntYr) })
+      qc.invalidateQueries({ queryKey: frgnPlrKeys.signedInfo(ssntYr) })
+      qc.invalidateQueries({ queryKey: ['seasons'] })
+    },
   })
 }

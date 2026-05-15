@@ -30,6 +30,7 @@
 
     <select id="findById" resultType="com.kbo.gm.domain.player.dao.PlrDao">
         SELECT P.PLR_ID, P.PLR_NM, P.PLR_ENG_NM, P.PLR_HGT, P.PLR_WGT,
+               P.PLR_DRFT_RND, P.PLR_DRFT_NO,
                P.PLR_BAT_PTCH_HAND_CD, P.PLR_ANSL_SAL, P.PLR_NTNLT, P.PLR_FRGN_YN,
                P.PLR_STTS_CD, P.PLR_OVRL_ABLT, P.PLR_POT_ABLT,
                T.TM_ID, T.TM_KR_NM, T.TM_SHRT_KR_NM,

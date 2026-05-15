@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:mariadb://localhost:3306/KBO?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowMultiQueries=true
+    url: jdbc:mariadb://localhost:3306/KBO?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowMultiQueries=true&sessionVariables=innodb_snapshot_isolation=OFF
     username: user
     password: password
     driver-class-name: org.mariadb.jdbc.Driver

@@ -1,7 +1,7 @@
 import {
   Box, Typography, AppBar, Toolbar, Button, Chip,
   Drawer, Table, TableHead, TableBody, TableRow, TableCell, TableContainer,
-  Paper, Alert, CircularProgress, Checkbox, FormControlLabel,
+  Paper, Alert, CircularProgress,
   Pagination, Divider, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions,
 } from '@mui/material'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
@@ -63,7 +63,6 @@ export default function DraftEventPage() {
     draft, isLoading, error,
     ssntYr, userTmId,
     rosterPlayers, rosterOpen, setRosterOpen,
-    showPicked, handleShowPickedChange,
     page, setPage, totalPages, pagedPlayers,
     pickedMap,
     teamPickList,
@@ -188,24 +187,13 @@ export default function DraftEventPage() {
 
             {/* Player list */}
             <Paper variant="outlined" sx={{ mb: 3 }}>
-              <Box sx={{ px: 2, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid', borderColor: 'divider' }}>
+              <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
                   드래프트 선수 목록
                   <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 1 }}>
                     (잠재 능력치 순)
                   </Typography>
                 </Typography>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={showPicked}
-                      onChange={(e) => handleShowPickedChange(e.target.checked)}
-                      size="small"
-                    />
-                  }
-                  label={<Typography variant="body2">지명여부 포함</Typography>}
-                  sx={{ m: 0 }}
-                />
               </Box>
 
               <TableContainer>
@@ -226,7 +214,7 @@ export default function DraftEventPage() {
                       <TableCell align="center">예상라운드</TableCell>
                       <TableCell align="center">성장</TableCell>
                       <TableCell align="center">부상</TableCell>
-                      {showPicked && <TableCell align="center">지명팀</TableCell>}
+                      <TableCell align="center">지명팀</TableCell>
                       {draft.drftSttsCd === 'IN_PROGRESS' && isMyPick && (
                         <TableCell align="center">지명</TableCell>
                       )}
@@ -283,14 +271,12 @@ export default function DraftEventPage() {
                             {p.grwthTend ? GRWTH_TEND_LABEL[p.grwthTend] ?? p.grwthTend : '-'}
                           </TableCell>
                           <TableCell align="center"><InjRskChip val={p.injRsk} /></TableCell>
-                          {showPicked && (
-                            <TableCell align="center" sx={{ fontSize: 12 }}>
-                              {pickInfo
-                                ? <Chip label={`${pickInfo.tmKrNm} ${pickInfo.rnd}R`} size="small" color="success" sx={{ fontSize: 10, height: 18, '& .MuiChip-label': { px: 0.5 } }} />
-                                : <Typography variant="caption" color="text.disabled">미지명</Typography>
-                              }
-                            </TableCell>
-                          )}
+                          <TableCell align="center" sx={{ fontSize: 12 }}>
+                            {pickInfo
+                              ? <Chip label={`${pickInfo.tmKrNm} ${pickInfo.rnd}R`} size="small" color="success" sx={{ fontSize: 10, height: 18, '& .MuiChip-label': { px: 0.5 } }} />
+                              : <Typography variant="caption" color="text.disabled">미지명</Typography>
+                            }
+                          </TableCell>
                           {draft.drftSttsCd === 'IN_PROGRESS' && isMyPick && (
                             <TableCell align="center">
                               {!isPicked && (

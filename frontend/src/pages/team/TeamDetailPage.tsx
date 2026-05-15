@@ -34,7 +34,7 @@ const PSTSSNT_COLOR: Record<string, 'default' | 'error' | 'warning' | 'success' 
 
 // 시설별 아이콘 이모지 (간단 표현)
 const FCLTY_ICON: Record<string, string> = {
-  TRNG: '🏋️', YUTH: '🌱', ANLY: '📊', SCTG: '🔭', CAFE: '🍽️',
+  TRNG: '🏋️', YUTH: '🌱', ANLY: '📊', SCTG: '🔭', CAFE: '🍽️', GRSS: '🌿',
 }
 
 export default function TeamDetailPage() {
@@ -80,6 +80,10 @@ export default function TeamDetailPage() {
         <InfoItem label="연고지" value={team.cityNm ?? '-'} />
         <InfoItem label="홈구장" value={team.stdmKrNm ?? '-'} />
         <InfoItem label="창단" value={team.tmEstblshDt?.slice(0, 4) ? `${team.tmEstblshDt.slice(0, 4)}년` : '-'} />
+        <InfoItem
+          label="구단 잔고"
+          value={finance?.curCash != null ? `${finance.curCash.toLocaleString()}만원` : '-'}
+        />
       </Paper>
 
       {/* 탭 */}
@@ -93,7 +97,7 @@ export default function TeamDetailPage() {
         }}
       >
         <Tab label="현황" />
-        <Tab label="재정" disabled={!isUserTeam} />
+        <Tab label="재정" />
         <Tab label="시설 이력" />
         <Tab label="팬덤" />
       </Tabs>
@@ -214,17 +218,34 @@ export default function TeamDetailPage() {
                           </Typography>
                         )}
                       </Box>
-                      {isUserTeam && !c.maxLevel && (
-                        <Tooltip title="업그레이드">
-                          <IconButton
-                            size="small"
-                            onClick={() => setUpgrTarget(c)}
-                            sx={{ color: ciClr, border: '1px solid', borderColor: ciClr, borderRadius: 1, p: 0.5 }}
-                          >
-                            <UpgradeIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
+                      {isUserTeam && !c.maxLevel && (() => {
+                        const curCash = finance?.curCash ?? 0
+                        const cost = c.upgrCost ?? 0
+                        const canAfford = curCash >= cost
+                        const tip = canAfford
+                          ? '업그레이드'
+                          : `재정 부족 (보유 ${curCash.toLocaleString()}만원 / 필요 ${cost.toLocaleString()}만원)`
+                        return (
+                          <Tooltip title={tip}>
+                            <span>
+                              <IconButton
+                                size="small"
+                                disabled={!canAfford}
+                                onClick={() => setUpgrTarget(c)}
+                                sx={{
+                                  color: canAfford ? ciClr : 'text.disabled',
+                                  border: '1px solid',
+                                  borderColor: canAfford ? ciClr : 'divider',
+                                  borderRadius: 1,
+                                  p: 0.5,
+                                }}
+                              >
+                                <UpgradeIcon fontSize="small" />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                        )
+                      })()}
                     </Box>
                   ))}
                 </Box>
@@ -292,7 +313,7 @@ export default function TeamDetailPage() {
       )}
 
       {/* 재정 탭 */}
-      {tabIndex === 1 && isUserTeam && (
+      {tabIndex === 1 && (
         <Paper variant="outlined" sx={{ p: 2 }}>
           <Tabs value={financeSubTab} onChange={(_, v) => setFinanceSubTab(v)}
             sx={{

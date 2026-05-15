@@ -174,10 +174,24 @@ export function usePlrEdit(plrId: number, onSuccess?: () => void) {
     mutationFn: (data: Parameters<typeof playerApi.editPlayer>[1]) =>
       playerApi.editPlayer(plrId, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: playerKeys.one(plrId) })
-      qc.invalidateQueries({ queryKey: playerKeys.abilities(plrId) })
-      qc.invalidateQueries({ queryKey: playerKeys.positions(plrId) })
-      qc.invalidateQueries({ queryKey: ['players', plrId, 'fatigue-condition'] })
+      qc.invalidateQueries({ queryKey: ['players', plrId] })
+      qc.invalidateQueries({ queryKey: ['players'] })
+      qc.invalidateQueries({ queryKey: ['teams'] })
+      onSuccess?.()
+    },
+  })
+}
+
+export function useReleaseForeignPlayer(plrId: number, onSuccess?: () => void) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => playerApi.releaseForeign(plrId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['players'] })
+      qc.invalidateQueries({ queryKey: ['teams'] })
+      qc.invalidateQueries({ queryKey: ['seasons'] })
+      qc.invalidateQueries({ queryKey: ['frgnPlr'] })
+      qc.invalidateQueries({ queryKey: ['rosterConfirm'] })
       onSuccess?.()
     },
   })

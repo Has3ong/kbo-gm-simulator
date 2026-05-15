@@ -30,7 +30,7 @@ export function useTeamDetailPage() {
 
   const { data: team, isLoading } = useTeam(tmIdNum)
   const { data: finance } = useTeamFinance(tmIdNum, ssntYr)
-  const { data: financeHistory } = useTeamFinanceHistory(isUserTeam ? tmIdNum : 0)
+  const { data: financeHistory } = useTeamFinanceHistory(tmIdNum)
   const { data: facilities } = useTeamFacilities(tmIdNum)
   const { data: facilityUpgrades } = useTeamFacilityUpgrades(tmIdNum)
   const { data: fcltyUpgrCosts } = useFcltyUpgrCosts(tmIdNum)

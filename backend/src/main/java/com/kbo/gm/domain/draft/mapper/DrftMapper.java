@@ -21,9 +21,9 @@ public interface DrftMapper {
     DrftPlrDao findPlayer(@Param("drftPlrId") Long drftPlrId, @Param("tmId") Long tmId);
     void insertPlayers(@Param("list") List<DrftPlrDao> list);
     void markPlayerPicked(@Param("drftPlrId") Long drftPlrId, @Param("plrId") Long plrId);
-    List<DrftPlrDao> findAvailablePlayersForAi(@Param("drftId") Long drftId);
-    Integer countPickedByReprPosn(@Param("drftId") Long drftId, @Param("tmId") Long tmId,
-                                   @Param("reprPosnCd") String reprPosnCd);
+    List<DrftPlrDao> findAvailablePlayersForAi(@Param("drftId") Long drftId,
+                                                @Param("tmId") Long tmId);
+    List<TmPosnStrengthDao> findTeamPosnStrength(@Param("tmId") Long tmId);
 
     // ── Scouting reports ─────────────────────────────
     void insertScoutingReports(@Param("list") List<DrftScutRptDao> list);

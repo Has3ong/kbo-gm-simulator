@@ -3,6 +3,7 @@ package com.kbo.gm.domain.player.controller;
 import com.kbo.gm.config.ApiResponse;
 import com.kbo.gm.domain.player.dto.*;
 import com.kbo.gm.domain.player.service.PlrService;
+import com.kbo.gm.domain.season.service.FrgnPlrService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,6 +16,7 @@ import java.util.List;
 public class PlrController {
 
     private final PlrService plrService;
+    private final FrgnPlrService frgnPlrService;
 
     @GetMapping
     public ApiResponse<List<PlrResponse>> getPlayers(
@@ -126,6 +128,12 @@ public class PlrController {
             @PathVariable Long plrId,
             @RequestBody PlrEditRequest req) {
         plrService.editPlayer(plrId, req);
+        return ApiResponse.ok(null);
+    }
+
+    @DeleteMapping("/{plrId}/release-foreign")
+    public ApiResponse<Void> releaseForeign(@PathVariable Long plrId) {
+        frgnPlrService.releaseForeignPlayer(plrId);
         return ApiResponse.ok(null);
     }
 }

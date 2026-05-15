@@ -87,6 +87,16 @@ public class TmService {
         LocalDate today = LocalDate.now();
         LocalDate endDt = today.plusDays(cost.getUpgrDays());
 
+        // 재정 검사 + 원자적 차감 (CUR_CASH >= upgrCost 조건이면 1행 업데이트, 부족 시 0행)
+        int updated = tmMapper.deductFcltyCash(tmId, upgrCost);
+        if (updated == 0) {
+            Long curCash = tmMapper.findCurCashCurSsnt(tmId);
+            throw new IllegalStateException(String.format(
+                    "재정이 부족하여 업그레이드할 수 없습니다. (필요: %,d만원 / 보유: %s만원)",
+                    upgrCost,
+                    curCash != null ? String.format("%,d", curCash) : "0"));
+        }
+
         tmMapper.updateFcltyLvl(tmId, fcltyTypeCd, toLvl);
         tmMapper.insertFcltyUpgr(tmId, fcltyTypeCd, fromLvl, toLvl, upgrCost, today, endDt);
     }

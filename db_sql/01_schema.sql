@@ -1001,6 +1001,20 @@ CREATE TABLE BRDCST_SPNSR (
 
 
 -- ============================================================
+-- TM_BRDCST: 팀-시즌별 방송국 계약 이력
+-- ============================================================
+CREATE TABLE TM_BRDCST (
+    TM_ID     BIGINT   NOT NULL                COMMENT '팀ID',
+    SSNT_YR   INT      NOT NULL                COMMENT '시즌 연도',
+    BRDCST_CD CHAR(3)  NOT NULL                COMMENT '방송국 코드',
+    REG_DT    DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '계약 등록 일시',
+    PRIMARY KEY (TM_ID, SSNT_YR),
+    CONSTRAINT FK_TM_BRDCST_TM     FOREIGN KEY (TM_ID)     REFERENCES TM           (TM_ID),
+    CONSTRAINT FK_TM_BRDCST_BRDCST FOREIGN KEY (BRDCST_CD) REFERENCES BRDCST_SPNSR (BRDCST_CD)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='팀-시즌별 방송국 계약 이력';
+
+
+-- ============================================================
 -- 외국인 선수 계약
 -- ============================================================
 CREATE TABLE FRGN_PLR_CAND (

@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 @RequiredArgsConstructor
@@ -86,8 +87,8 @@ public class DrftService {
         List<DrftPlrDao> players = generatePlayers(drftId, DEFAULT_POOL_SIZE, rng);
         drftMapper.insertPlayers(players);
 
-        // 2. 다시 조회해서 drftPlrId 획득
-        List<DrftPlrDao> savedPlayers = drftMapper.findAvailablePlayersForAi(drftId);
+        // 2. 다시 조회해서 drftPlrId 획득 (이 시점에는 스카우팅 리포트가 없으므로 tmId=null)
+        List<DrftPlrDao> savedPlayers = drftMapper.findAvailablePlayersForAi(drftId, null);
 
         // 3. 팀 목록 조회
         List<Long> teamIds = drftMapper.findAllTeamIds();
@@ -273,11 +274,13 @@ public class DrftService {
 
     private DrftOrdResponse aiPick(Long drftId, Integer pickNo, Long tmId,
                                     Integer ssntYr, Integer rnd) {
-        List<DrftPlrDao> available = drftMapper.findAvailablePlayersForAi(drftId);
+        List<DrftPlrDao> available = drftMapper.findAvailablePlayersForAi(drftId, tmId);
         if (available.isEmpty()) return null;
 
+        Map<String, Double> posnNeed = buildPosnNeedMap(tmId);
+
         DrftPlrDao best = available.stream()
-                .max(Comparator.comparingDouble(p -> aiScore(drftId, tmId, p, rnd)))
+                .max(Comparator.comparingDouble(p -> aiScore(p, rnd, posnNeed)))
                 .orElse(available.get(0));
 
         return executePick(drftId, pickNo, tmId, best.getDrftPlrId(), ssntYr, rnd);
@@ -423,42 +426,73 @@ public class DrftService {
 
     // ── 유틸리티 ─────────────────────────────────────────────────
 
-    private double aiScore(Long drftId, Long tmId, DrftPlrDao plr, int rnd) {
-        int estPot  = plr.getActPotAblt();  // AI는 실제 잠재력 기준
-        int estOvrl = plr.getActOvrlAblt();
-        int posnNeed = getPositionNeed(drftId, tmId, plr.getReprPosnCd());
-        double riskPenalty = plr.getInjRsk() / 20.0;
+    // 포지션별 목표 보유 인원수 (1군+2군 합산 기준)
+    private static final Map<String, Integer> POSN_TARGET_CNT = Map.of(
+            "10", 12,  // 투수
+            "20", 3,   // 포수
+            "21", 6,   // 내야수
+            "22", 5    // 외야수
+    );
 
-        // 라운드별 가중치 조정: 초반-잠재력 중시, 중반-균형, 후반-즉전감 중시
+    private double aiScore(DrftPlrDao plr, int rnd, Map<String, Double> posnNeedMap) {
+        // 스카우팅 리포트 기준 보기 능력치 (없으면 실제값 fallback)
+        int estPot  = plr.getEstPotAblt()  != null ? plr.getEstPotAblt()  : plr.getActPotAblt();
+        int estOvrl = plr.getEstOvrlAblt() != null ? plr.getEstOvrlAblt() : plr.getActOvrlAblt();
+
+        // 라운드별 가중치: 초반-잠재력 중시, 중반-균형, 후반-즉전감 중시
         double potWeight;
         double ovrlWeight;
         if (rnd <= 3) {
-            potWeight  = 0.45;
-            ovrlWeight = 0.15;
+            potWeight  = 0.55;
+            ovrlWeight = 0.25;
         } else if (rnd <= 7) {
-            potWeight  = 0.30;
-            ovrlWeight = 0.30;
-        } else {
-            potWeight  = 0.20;
+            potWeight  = 0.40;
             ovrlWeight = 0.40;
+        } else {
+            potWeight  = 0.25;
+            ovrlWeight = 0.55;
         }
+        double abilityScore = estPot * potWeight + estOvrl * ovrlWeight;
 
-        // 랜덤 편차: 버스트/보석 가능성 (±5점 스윙)
-        double variance = (new Random().nextDouble() - 0.5) * 10.0;
+        // 포지션 부족도: 능력치 갭 + 인원 갭으로 합산된 값 (0~30 범위)
+        double posnNeed = posnNeedMap.getOrDefault(plr.getReprPosnCd(), 0.0);
 
-        return estPot * potWeight
-                + estOvrl * ovrlWeight
-                + posnNeed * 0.25
-                - riskPenalty * 5.0
-                + variance;
+        // 부상 위험 패널티 (1~20 → 0.25~5점)
+        double riskPenalty = (plr.getInjRsk() != null ? plr.getInjRsk() : 10) / 4.0;
+
+        // 결정에 약한 변동성 (±2점)
+        double variance = ThreadLocalRandom.current().nextDouble(-2.0, 2.0);
+
+        return abilityScore + posnNeed * 0.6 - riskPenalty + variance;
     }
 
-    private int getPositionNeed(Long drftId, Long tmId, String reprPosnCd) {
-        Integer cnt = drftMapper.countPickedByReprPosn(drftId, tmId, reprPosnCd);
-        if (cnt == null || cnt == 0) return 10;
-        if (cnt == 1) return 6;
-        if (cnt == 2) return 3;
-        return 1;
+    /**
+     * 팀의 포지션별 부족도 맵을 계산한다.
+     * - 능력치 갭: max(0, 55 - 해당 포지션 평균 OVRL)
+     * - 인원 갭: max(0, 목표 인원수 - 현재 인원수) * 2.5
+     */
+    private Map<String, Double> buildPosnNeedMap(Long tmId) {
+        List<TmPosnStrengthDao> rows = drftMapper.findTeamPosnStrength(tmId);
+        Map<String, Double> avgOvrlByPosn = new HashMap<>();
+        Map<String, Integer> cntByPosn = new HashMap<>();
+        for (TmPosnStrengthDao r : rows) {
+            avgOvrlByPosn.put(r.getReprPosnCd(),
+                    r.getAvgOvrl() != null ? r.getAvgOvrl() : 50.0);
+            cntByPosn.put(r.getReprPosnCd(),
+                    r.getPlrCnt() != null ? r.getPlrCnt() : 0);
+        }
+
+        Map<String, Double> result = new HashMap<>();
+        for (Map.Entry<String, Integer> e : POSN_TARGET_CNT.entrySet()) {
+            String posnCd = e.getKey();
+            int targetCnt = e.getValue();
+            double avg = avgOvrlByPosn.getOrDefault(posnCd, 0.0);
+            int curCnt = cntByPosn.getOrDefault(posnCd, 0);
+            double abltGap = Math.max(0.0, 55.0 - avg);
+            double cntGap = Math.max(0.0, targetCnt - curCnt) * 2.5;
+            result.put(posnCd, abltGap + cntGap);
+        }
+        return result;
     }
 
     private String[] selectPositionByWeight(Random rng) {

@@ -52,18 +52,28 @@ public class GameStartService {
             emit(emitter, 4, "유저 팀 정보 저장 중...", false, null);
             mapper.upsertGameCfg("USER_TM_ID", String.valueOf(tmId));
 
-            // Step 5: 전체 팀 시즌 순위 초기화
-            emit(emitter, 5, "팀 시즌 상태 초기화 중...", false, null);
+            // Step 5: 전체 팀 시즌 순위·시작 예산 초기화
+            emit(emitter, 5, "팀 시즌 상태·예산 초기화 중...", false, null);
             List<TmForStartDao> allTeams = mapper.findAllTeams();
             List<Map<String, Object>> stndList = new ArrayList<>();
+            List<Map<String, Object>> fncList = new ArrayList<>();
+            final long startingCashManwon = 1_000_000L; // 100억원 = 1,000,000 만원
             for (int i = 0; i < allTeams.size(); i++) {
-                Map<String, Object> row = new HashMap<>();
-                row.put("tmId", allTeams.get(i).getTmId());
-                row.put("ssntYr", ssntYr);
-                row.put("rank", i + 1);
-                stndList.add(row);
+                Long tmIdLoop = allTeams.get(i).getTmId();
+                Map<String, Object> stnd = new HashMap<>();
+                stnd.put("tmId", tmIdLoop);
+                stnd.put("ssntYr", ssntYr);
+                stnd.put("rank", i + 1);
+                stndList.add(stnd);
+
+                Map<String, Object> fnc = new HashMap<>();
+                fnc.put("tmId", tmIdLoop);
+                fnc.put("ssntYr", ssntYr);
+                fnc.put("cash", startingCashManwon);
+                fncList.add(fnc);
             }
             mapper.insertStndBatch(stndList);
+            mapper.insertTmFncInitBatch(fncList);
 
             // Step 6: 전체 선수 엔트리 초기화
             emit(emitter, 6, "로스터 초기화 중...", false, null);
@@ -299,7 +309,17 @@ public class GameStartService {
             "SSNT_EVNT", "PSTSSNT_GAME", "PSTSSNT_SRS", "GAME", "STND",
             "PLR_POSN_SSNT", "PLR_ANSL_SAL_HIST",
             "TM_FNC_SSNT", "TM_MKT_SSNT",
+            // 드래프트 (사용자 요청: 시즌 시작 시 초기화)
             "DRFT_BOARD", "DRFT_ORD", "DRFT_SCUT_RPT", "DRFT_PLR", "DRFT",
+            // 외국인 후보·오퍼 (게임 중 생성)
+            "FRGN_PLR_OFFER", "FRGN_PLR_CAND_STAT", "FRGN_PLR_CAND_ABLT", "FRGN_PLR_CAND",
+            // 방송국 계약 (게임 중 체결)
+            "TM_BRDCST",
+            // 스태프 (게임 중 선임)
+            "STFF_CAND_ABLT", "STFF_CAND", "STFF_TM_CNTRCT", "STFF_TM", "STFF_ABLT", "STFF",
+            // 게임 중 누적 상태
+            "PLR_TM_CNTRCT_HIST", "PLR_FATG_COND", "PLR_GRWTH_LOG", "PLR_ABLT_MON",
+            "TM_FCLTY_UPGR", "STDM_EXPN",
             "SSNT"
     );
 
@@ -331,6 +351,102 @@ public class GameStartService {
             } catch (Exception e) {
                 log.warn("게임 기록 삭제 건너뜀: {} — {}", table, e.getMessage());
             }
+        }
+
+        // PLR/PLR_TM/PLR_TM_CNTRCT — 시드 데이터와 in-game 데이터가 혼재하므로 날짜 기준 정리
+        resetInGameContracts(ssntYr);
+    }
+
+    /**
+     * 시즌 시작 기준일({ssntYr}-02-01) 이후에 발생한 PLR/PLR_TM/PLR_TM_CNTRCT 변경을 되돌린다.
+     * - in-game에 추가된 선수(외국인 영입·드래프트 픽)는 종속 데이터까지 cascade 삭제
+     * - 시드 선수의 in-game 신규 계약·이적은 행 삭제, in-game 방출은 종료일 복원
+     * - PLR.PLR_STTS_CD='REL'(in-game 방출)을 'AT'로 복원하고 TM_ID 재연결
+     */
+    private void resetInGameContracts(int ssntYr) {
+        final String gameStart = ssntYr + "-02-01";
+
+        // 1. in-game에 신규 등장한 PLR_ID 식별 (첫 PLR_TM 기록이 시즌 시작 이후)
+        List<Long> ingameIds;
+        try {
+            ingameIds = jdbcTemplate.queryForList(
+                "SELECT x.PLR_ID FROM (" +
+                "  SELECT PLR_ID, MIN(TM_BGNG_DT) AS first_dt FROM PLR_TM GROUP BY PLR_ID" +
+                ") x WHERE x.first_dt >= ?", Long.class, gameStart);
+        } catch (Exception e) {
+            log.warn("in-game PLR 식별 실패: {}", e.getMessage());
+            ingameIds = java.util.Collections.emptyList();
+        }
+
+        if (!ingameIds.isEmpty()) {
+            String idsCsv = ingameIds.stream()
+                    .map(String::valueOf)
+                    .collect(java.util.stream.Collectors.joining(","));
+            // 종속 테이블에서 먼저 제거 (FK가 있어도 안전하게)
+            for (String tbl : List.of(
+                    "PLR_ABLT", "PLR_POSN", "PLR_TRT", "PLR_HIDE_ABLT",
+                    "PLR_TM_CNTRCT", "PLR_TM")) {
+                try {
+                    jdbcTemplate.execute("DELETE FROM " + tbl + " WHERE PLR_ID IN (" + idsCsv + ")");
+                } catch (Exception e) {
+                    log.warn("in-game PLR 종속 데이터 삭제 건너뜀: {} — {}", tbl, e.getMessage());
+                }
+            }
+            try {
+                jdbcTemplate.execute("DELETE FROM PLR WHERE PLR_ID IN (" + idsCsv + ")");
+                log.info("in-game 신규 PLR {}건 삭제 완료", ingameIds.size());
+            } catch (Exception e) {
+                log.warn("in-game PLR 삭제 건너뜀: {}", e.getMessage());
+            }
+        }
+
+        // 2. 시드 선수의 in-game 계약 변경 정리
+        // 2a. in-game 시작된 PLR_TM 행 삭제 (FA 신규 영입 등)
+        try {
+            int deleted = jdbcTemplate.update("DELETE FROM PLR_TM WHERE TM_BGNG_DT >= ?", gameStart);
+            if (deleted > 0) log.info("in-game 시작 PLR_TM {}건 삭제", deleted);
+        } catch (Exception e) {
+            log.warn("PLR_TM 삭제 건너뜀: {}", e.getMessage());
+        }
+        // 2b. in-game 종료된 PLR_TM 종료일 NULL로 복원 (방출 되돌리기)
+        try {
+            int updated = jdbcTemplate.update("UPDATE PLR_TM SET TM_END_DT = NULL WHERE TM_END_DT >= ?", gameStart);
+            if (updated > 0) log.info("in-game 종료 PLR_TM 종료일 {}건 복원", updated);
+        } catch (Exception e) {
+            log.warn("PLR_TM 종료일 복원 건너뜀: {}", e.getMessage());
+        }
+
+        // 2c. PLR_TM_CNTRCT — in-game 시작 행 삭제, in-game 방출에 의한 종료일 복원
+        try {
+            int deleted = jdbcTemplate.update(
+                "DELETE FROM PLR_TM_CNTRCT WHERE FA_CNTRCT_BGNG_DT >= ?", gameStart);
+            if (deleted > 0) log.info("in-game 시작 PLR_TM_CNTRCT {}건 삭제", deleted);
+        } catch (Exception e) {
+            log.warn("PLR_TM_CNTRCT 삭제 건너뜀: {}", e.getMessage());
+        }
+        try {
+            int updated = jdbcTemplate.update(
+                "UPDATE PLR_TM_CNTRCT SET FA_CNTRCT_END_DT = NULL " +
+                "WHERE FA_CNTRCT_END_DT >= ? " +
+                "  AND PLR_ID IN (SELECT PLR_ID FROM PLR WHERE PLR_STTS_CD = 'REL')",
+                gameStart);
+            if (updated > 0) log.info("in-game 방출 계약 종료일 {}건 복원", updated);
+        } catch (Exception e) {
+            log.warn("PLR_TM_CNTRCT 종료일 복원 건너뜀: {}", e.getMessage());
+        }
+
+        // 3. PLR.PLR_STTS_CD='REL' (in-game 방출된 선수)을 'AT'로 복원 + TM_ID 재연결
+        try {
+            int updated = jdbcTemplate.update(
+                "UPDATE PLR p " +
+                "INNER JOIN (" +
+                "  SELECT PLR_ID, MAX(TM_ID) AS TM_ID FROM PLR_TM WHERE TM_END_DT IS NULL GROUP BY PLR_ID" +
+                ") pt ON pt.PLR_ID = p.PLR_ID " +
+                "SET p.PLR_STTS_CD = 'AT', p.TM_ID = pt.TM_ID " +
+                "WHERE p.PLR_STTS_CD = 'REL'");
+            if (updated > 0) log.info("in-game 방출 선수 {}건 상태/팀 복원", updated);
+        } catch (Exception e) {
+            log.warn("PLR 상태 복원 건너뜀: {}", e.getMessage());
         }
     }
 

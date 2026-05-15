@@ -29,8 +29,10 @@ export function useHireStaff() {
   return useMutation({
     mutationFn: (req: StffHireRequest) => staffApi.hire(req),
     onSuccess: () => {
-      qc.removeQueries({ queryKey: staffHireKeys.current() })
-      qc.removeQueries({ queryKey: staffHireKeys.candidates() })
+      qc.invalidateQueries({ queryKey: ['staffHire'] })
+      qc.invalidateQueries({ queryKey: ['staffs'] })
+      qc.invalidateQueries({ queryKey: ['seasons'] })
+      qc.invalidateQueries({ queryKey: ['teams'] })
     },
   })
 }

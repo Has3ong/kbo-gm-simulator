@@ -46,7 +46,10 @@ public class StffHireService {
     /** 방송국 계약 직후: 유저 팀 감독/코치 후보 생성 및 STFF_HIRED 초기화 */
     @Transactional
     public void onBrdcstSelected() {
-        if (mapper.findCurrentSsntYr() == null || mapper.findCurrentDate() == null) return;
+        Integer ssntYr = mapper.findCurrentSsntYr();
+        String  curDt  = mapper.findCurrentDate();
+        Long    userTmId = mapper.findUserTmId();
+        if (ssntYr == null || curDt == null) return;
 
         // STFF_HIRED 초기화: 방송국 선택 시 선임 상태 리셋 (새 시즌 방송국 재계약 시에도 대응)
         mapper.upsertCfg("STFF_HIRED", "0");
@@ -55,6 +58,38 @@ public class StffHireService {
         mapper.clearCandidates();
         generateAndStoreCandidates();
         // AI 팀 선임은 유저 선임 완료 시 함께 처리
+
+        // 감독·코치 선임 안내 뉴스 (REQUIRED_EVENT: STFF 필수 이벤트)
+        if (userTmId != null) {
+            createStffHireOpenEvnt(ssntYr, curDt, userTmId);
+        }
+    }
+
+    /** 방송국 선택 직후 감독·코치 선임을 유도하는 STFF 안내 이벤트 생성 (중복 방지) */
+    private void createStffHireOpenEvnt(int ssntYr, String curDt, Long userTmId) {
+        try {
+            Integer existing = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM SSNT_EVNT " +
+                "WHERE SSNT_YR = ? AND TM_ID = ? AND EVNT_TYPE_CD = 'STFF' AND EVNT_DT = ?",
+                Integer.class, ssntYr, userTmId, curDt);
+            if (existing != null && existing > 0) return;
+        } catch (Exception ex) { /* ignore */ }
+
+        String html =
+            "<div style='font-family:inherit;'>" +
+            "<p style='margin:0 0 12px;'>방송국 계약이 체결되었습니다. 이제 새 시즌을 함께할 <b>감독 1명</b>과 <b>코치 최대 2명</b>을 선임해야 합니다.</p>" +
+            "<ul style='margin:0 0 12px 18px;padding:0;color:#555;line-height:1.7;'>" +
+            "<li>감독 후보 <b>6명</b>, 코치 후보 <b>10명</b>이 준비되었습니다.</li>" +
+            "<li>각 후보는 경력·능력치·계약금·연봉이 모두 다릅니다.</li>" +
+            "<li>기존 감독·코치가 있다면 재계약도 가능합니다.</li>" +
+            "<li>선임 완료 전까지는 진행하기가 비활성화됩니다.</li>" +
+            "</ul>" +
+            "<p style='margin:0;color:#555;'>아래 버튼을 눌러 감독·코치 선임을 진행하세요.</p>" +
+            "</div>";
+
+        Map<String, Object> e = buildEvnt(ssntYr, curDt, userTmId, "STFF",
+                ssntYr + "년 감독·코치 선임", html);
+        mapper.insertEvnt(e);
     }
 
     /** 유저 팀 현재 감독/코치 조회 */

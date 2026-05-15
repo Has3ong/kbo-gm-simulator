@@ -18,6 +18,7 @@ interface GameContextValue {
 }
 
 const STORAGE_KEY = 'kbo_gm_saves'
+const CURRENT_KEY = 'kbo_gm_current'
 
 function loadSaves(): GameSave[] {
   try {
@@ -31,11 +32,33 @@ function persistSaves(saves: GameSave[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(saves))
 }
 
+function loadCurrent(): GameSave | null {
+  try {
+    const raw = localStorage.getItem(CURRENT_KEY)
+    return raw ? (JSON.parse(raw) as GameSave) : null
+  } catch {
+    return null
+  }
+}
+
+function persistCurrent(game: GameSave | null) {
+  if (game) localStorage.setItem(CURRENT_KEY, JSON.stringify(game))
+  else localStorage.removeItem(CURRENT_KEY)
+}
+
 const GameContext = createContext<GameContextValue | null>(null)
 
 export function GameProvider({ children }: { children: ReactNode }) {
   const [savedGames, setSavedGames] = useState<GameSave[]>(loadSaves)
-  const [currentGame, setCurrentGame] = useState<GameSave | null>(null)
+  const [currentGame, setCurrentGameState] = useState<GameSave | null>(loadCurrent)
+
+  const setCurrentGame = useCallback((game: GameSave | null | ((cur: GameSave | null) => GameSave | null)) => {
+    setCurrentGameState((cur) => {
+      const next = typeof game === 'function' ? game(cur) : game
+      persistCurrent(next)
+      return next
+    })
+  }, [])
 
   const startGame = useCallback((teamId: number, teamName: string, ssntYr: number) => {
     const save: GameSave = {
@@ -53,15 +76,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
       return next
     })
     setCurrentGame(save)
-  }, [])
+  }, [setCurrentGame])
 
   const loadGame = useCallback((save: GameSave) => {
     setCurrentGame(save)
-  }, [])
+  }, [setCurrentGame])
 
   const clearGame = useCallback(() => {
     setCurrentGame(null)
-  }, [])
+  }, [setCurrentGame])
 
   const deleteSave = useCallback((save: GameSave) => {
     deleteSaveData(save.ssntYr).catch(() => {})
@@ -75,7 +98,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setCurrentGame((cur) =>
       cur && cur.userTeamId === save.userTeamId && cur.ssntYr === save.ssntYr ? null : cur,
     )
-  }, [])
+  }, [setCurrentGame])
 
   return (
     <GameContext.Provider value={{ currentGame, savedGames, startGame, loadGame, clearGame, deleteSave }}>

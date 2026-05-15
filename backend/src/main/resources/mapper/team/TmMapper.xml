@@ -114,6 +114,24 @@
            AND FCLTY_TYPE_CD = #{fcltyTypeCd}
     </update>
 
+    <select id="findCurCashCurSsnt" resultType="java.lang.Long">
+        SELECT CUR_CASH
+          FROM TM_FNC_SSNT
+         WHERE TM_ID   = #{tmId}
+           AND SSNT_YR = (SELECT MAX(SSNT_YR) FROM SSNT)
+         LIMIT 1
+    </select>
+
+    <update id="deductFcltyCash">
+        UPDATE TM_FNC_SSNT
+           SET CUR_CASH       = CUR_CASH - #{upgrCost}
+             , CUR_FCLTY_COST = COALESCE(CUR_FCLTY_COST, 0) + #{upgrCost}
+         WHERE TM_ID    = #{tmId}
+           AND SSNT_YR  = (SELECT MAX(SSNT_YR) FROM SSNT)
+           AND CUR_CASH IS NOT NULL
+           AND CUR_CASH &gt;= #{upgrCost}
+    </update>
+
     <insert id="insertFcltyUpgr">
         INSERT INTO TM_FCLTY_UPGR
             (TM_ID, FCLTY_TYPE_CD, FROM_LVL, TO_LVL, UPGR_COST, UPGR_BGNG_DT, UPGR_END_DT, UPGR_STTS_CD)

@@ -165,27 +165,40 @@
              , P.PLR_ORGN_CD   /* 출신코드 */
              , P.POSN_CD       /* 주 포지션코드 */
              , P.REPR_POSN_CD  /* 대표 포지션코드 */
-             , P.ACT_OVRL_ABLT /* 실제 현재 능력치 */
-             , P.ACT_POT_ABLT  /* 실제 잠재 능력치 */
+             , P.ACT_OVRL_ABLT /* 실제 현재 능력치 (fallback) */
+             , P.ACT_POT_ABLT  /* 실제 잠재 능력치 (fallback) */
              , P.GRWTH_TEND    /* 성장 성향 */
              , P.INJ_RSK       /* 부상 위험도 */
              , P.IS_PICK_YN    /* 지명 여부 */
              , P.IS_EXCL_YN    /* 지명 제외 여부 */
+             , S.EST_OVRL_ABLT /* 스카우팅 추정 현재 능력치 (보기 능력치) */
+             , S.EST_POT_ABLT  /* 스카우팅 추정 잠재 능력치 (보기 잠재력) */
+             , S.GRADE         /* 평가 등급 */
           FROM DRFT_PLR P  /* 드래프트 선수풀 */
+          LEFT JOIN DRFT_SCUT_RPT S  /* 팀별 스카우팅 리포트 */
+            ON S.DRFT_PLR_ID = P.DRFT_PLR_ID
+           AND S.TM_ID       = #{tmId}
          WHERE P.DRFT_ID    = #{drftId}
            AND P.IS_PICK_YN = 'N'
            AND P.IS_EXCL_YN = 'N'
-         ORDER BY P.ACT_POT_ABLT DESC
+         ORDER BY COALESCE(S.EST_POT_ABLT, P.ACT_POT_ABLT) DESC
     </select>
 
-    <select id="countPickedByReprPosn" resultType="java.lang.Integer">
-        SELECT COUNT(*)
-          FROM DRFT_ORD O  /* 드래프트 지명 순서 */
-          JOIN DRFT_PLR P ON P.DRFT_PLR_ID = O.DRFT_PLR_ID  /* 드래프트 선수풀 */
-         WHERE O.DRFT_ID      = #{drftId}
-           AND O.TM_ID         = #{tmId}
-           AND O.PICK_STTS_CD  = 'PICKED'
-           AND P.REPR_POSN_CD  = #{reprPosnCd}
+    <select id="findTeamPosnStrength" resultType="com.kbo.gm.domain.draft.dao.TmPosnStrengthDao">
+        SELECT C.REPR_POSN_CD              AS REPR_POSN_CD  /* 대표 포지션 코드 */
+             , COUNT(*)                    AS PLR_CNT       /* 선수 수 */
+             , AVG(P.PLR_OVRL_ABLT)        AS AVG_OVRL      /* 평균 현재 능력치 */
+          FROM PLR P  /* 선수 기본정보 */
+          JOIN ( SELECT PLR_ID
+                      , REPR_POSN_CD
+                   FROM PLR_TM_CNTRCT
+                  WHERE FA_CNTRCT_END_DT >= CURDATE()
+                     OR FA_CNTRCT_END_DT IS NULL
+                  GROUP BY PLR_ID
+               ) C ON C.PLR_ID = P.PLR_ID
+         WHERE P.TM_ID       = #{tmId}
+           AND P.PLR_STTS_CD = 'AT'
+         GROUP BY C.REPR_POSN_CD
     </select>
 
     <!-- ──────────────────────────────────────────────────────── -->

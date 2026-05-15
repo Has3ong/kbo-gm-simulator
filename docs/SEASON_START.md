@@ -30,10 +30,11 @@
 | 항목 | 내용 |
 |------|------|
 | 상태 | ✅ 구현 완료 |
-| 삭제 테이블 (전체 삭제) | `TM_BULLPEN`, `TM_ROTATION`, `TM_LINEUP`, `GAME_CFG`, `PLR_ENTY_HIST`, `PLR_ENTY`, `PLR_BATR_GAME_REC`, `PLR_PTCH_GAME_REC`, `PLR_BATR_MON_REC`, `PLR_PTCH_MON_REC`, `PLR_BATR_TM_SSNT_REC`, `PLR_PTCH_TM_SSNT_REC`, `TM_MON_REC`, `TM_SSNT_REC`, `SSNT_EVNT`, `PSTSSNT_GAME`, `PSTSSNT_SRS`, `GAME`, `STND`, `PLR_POSN_SSNT`, `PLR_ANSL_SAL_HIST`, `TM_FNC_SSNT`, `TM_MKT_SSNT`, `DRFT_BOARD`, `DRFT_ORD`, `DRFT_SCUT_RPT`, `DRFT_PLR`, `DRFT`, `SSNT` |
+| 삭제 테이블 (전체 삭제) | **시즌·게임 기록**: `TM_BULLPEN`, `TM_ROTATION`, `TM_LINEUP`, `GAME_CFG`, `PLR_ENTY_HIST`, `PLR_ENTY`, `PLR_BATR_GAME_REC`, `PLR_PTCH_GAME_REC`, `PLR_BATR_MON_REC`, `PLR_PTCH_MON_REC`, `PLR_BATR_TM_SSNT_REC`, `PLR_PTCH_TM_SSNT_REC`, `TM_MON_REC`, `TM_SSNT_REC`, `SSNT_EVNT`, `PSTSSNT_GAME`, `PSTSSNT_SRS`, `GAME`, `STND`, `PLR_POSN_SSNT`, `PLR_ANSL_SAL_HIST`, `TM_FNC_SSNT`, `TM_MKT_SSNT`, `SSNT` <br/> **드래프트**: `DRFT_BOARD`, `DRFT_ORD`, `DRFT_SCUT_RPT`, `DRFT_PLR`, `DRFT` <br/> **외국인 후보·오퍼**: `FRGN_PLR_OFFER`, `FRGN_PLR_CAND_STAT`, `FRGN_PLR_CAND_ABLT`, `FRGN_PLR_CAND` <br/> **방송 계약**: `TM_BRDCST` <br/> **스태프 (in-game 선임)**: `STFF_CAND_ABLT`, `STFF_CAND`, `STFF_TM_CNTRCT`, `STFF_TM`, `STFF_ABLT`, `STFF` <br/> **누적 상태**: `PLR_TM_CNTRCT_HIST`, `PLR_FATG_COND`, `PLR_GRWTH_LOG`, `PLR_ABLT_MON`, `TM_FCLTY_UPGR`, `STDM_EXPN` |
 | 기초 데이터 유지 (SSNT_YR 조건 삭제) | `PLR_BATR_SSNT_REC` (SSNT_YR >= game_year), `PLR_PTCH_SSNT_REC` (SSNT_YR >= game_year), `PLR_ABLT_SSNT` (SSNT_YR >= game_year) |
-| 유지 테이블 | `TM`, `PLR`, `STDM`, `TM_STDM`, `PLR_POSN`, `PLR_ABLT`, `PLR_TM_CNTRCT`, `CMN_CD` 등 기초 마스터 |
-| 비고 | 1982~2025 실제 기록은 기초 데이터로 보호 |
+| in-game 계약 정리 (`resetInGameContracts`) | 시즌 시작일(`{ssntYr}-02-01`) 이후 발생한 PLR/PLR_TM/PLR_TM_CNTRCT 변경 되돌리기: <br/> ① in-game 신규 영입 선수(외국인·드래프트 픽) 식별 후 cascade 삭제 (`PLR`, `PLR_ABLT`, `PLR_POSN`, `PLR_TRT`, `PLR_HIDE_ABLT`, `PLR_TM`, `PLR_TM_CNTRCT`) <br/> ② 시드 선수 in-game 신규 `PLR_TM`/`PLR_TM_CNTRCT` 행 삭제 (`TM_BGNG_DT >= 시작일`, `FA_CNTRCT_BGNG_DT >= 시작일`) <br/> ③ in-game 방출 되돌리기: `TM_END_DT >= 시작일` → `NULL`, `PLR_STTS_CD='REL'`인 선수의 `FA_CNTRCT_END_DT >= 시작일` → `NULL` <br/> ④ `PLR_STTS_CD='REL'` 선수를 활성 `PLR_TM`을 기준으로 `'AT'` 상태와 `TM_ID` 재연결 |
+| 유지 테이블 | `TM`, `PLR`(시드), `STDM`, `TM_STDM`, `STDM_HIST`, `PLR_POSN`(시드), `PLR_ABLT`(시드), `PLR_TM`(시드), `PLR_TM_CNTRCT`(시드), `TM_FCLTY`, `BRDCST_SPNSR`, `FCLTY_UPGR_COST_CFG`, `STDM_EXPN_COST_CFG`, `CMN_CD` 등 기초 마스터 |
+| 비고 | 1982~2025 실제 기록 및 2026 시즌 시작 직전(`2026-01-15`까지)의 시드 데이터는 보호. 그 이후(`2026-02-01~`)에 in-game으로 만들어진 모든 데이터는 삭제된다. |
 
 ---
 
@@ -56,12 +57,13 @@
 
 ---
 
-### Step 5 — 팀 시즌 순위 초기화
+### Step 5 — 팀 시즌 순위·시작 예산 초기화
 | 항목 | 내용 |
 |------|------|
 | 상태 | ✅ 구현 완료 |
-| 삽입 테이블 | `STND` |
-| 설명 | 전체 10개 팀을 0승 0패 0무로 초기화. 초기 순위는 삽입 순서(TM_ID 오름차순) |
+| 삽입 테이블 | `STND`, `TM_FNC_SSNT` |
+| 설명 | 전체 10개 팀을 0승 0패 0무로 STND 초기화 (초기 순위는 TM_ID 오름차순). 동시에 `TM_FNC_SSNT`에 `STR_CASH = CUR_CASH = TOT_BDGT = 1,000,000만원 (=100억)`을 입력하여 모든 구단의 시즌 시작 현금을 100억으로 균등 부여 |
+| 안전망 | `BrdcstSpnsrService.select()`(최초 호출 시)에서도 `INSERT IGNORE` 기반 `ensureInitialFinances(ssntYr)`가 동작하여, 시즌 시작 단계를 거치지 않은 데이터 시드 케이스에도 100억 시작 현금이 누락 없이 적용된다 |
 
 ---
 

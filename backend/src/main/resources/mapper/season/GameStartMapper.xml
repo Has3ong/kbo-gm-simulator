@@ -87,6 +87,16 @@
         </foreach>
     </insert>
 
+    <!-- ===== TM_FNC_SSNT 초기 예산 배치 삽입 ===== -->
+    <!-- 모든 팀에게 시작 현금 100억(=1,000,000 만원) 부여 -->
+    <insert id="insertTmFncInitBatch">
+        INSERT INTO TM_FNC_SSNT (TM_ID, SSNT_YR, STR_CASH, CUR_CASH, TOT_BDGT)
+        VALUES
+        <foreach collection="list" item="f" separator=",">
+            (#{f.tmId}, #{f.ssntYr}, #{f.cash}, #{f.cash}, #{f.cash})
+        </foreach>
+    </insert>
+
     <!-- ===== PLR_ENTY 선수 엔트리 배치 삽입 ===== -->
     <!-- 계약 선수 전원을 1군 엔트리로 초기화 -->
     <insert id="insertEntyBatch">

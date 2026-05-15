@@ -297,9 +297,15 @@ AI 자동 지명 (유저 픽까지).
 
 ### `GET /api/frgn-plr/signed-info?ssntYr=`
 유저 팀 외국인 선수 계약 현황.
-- `signedCnt`: 현재 계약된 외국인 선수 수
+- `signedCnt`: 현재 로스터 상 외국인 선수 수 (`PLR.PLR_FRGN_YN='1' AND PLR_STTS_CD='AT'` 기준)
 - `maxFrgnPlr`: 최대 계약 가능 수 (서비스 상수 `MAX_FRGN_PLR = 3`)
-- 팝업 헤더에 "현재 N명 / 최대 3명" 형식으로 표시
+- 팝업 헤더에 "현재 N명 / 최대 3명" 형식으로 표시. 최대 도달 시 모달에서 안내 Alert + 모든 오퍼 입력 비활성화
+
+### `DELETE /api/players/{plrId}/release-foreign`
+유저 팀 외국인 선수 계약 해지(방출).
+- 검증: `PLR_FRGN_YN='1'`, `TM_ID = 유저팀`, `PLR_STTS_CD='AT'`
+- 처리: `PLR.PLR_STTS_CD='REL'`, `TM_ID=NULL`, `PLR_TM`/`PLR_TM_CNTRCT` 종료, 현 시즌 `PLR_ENTY`/`TM_LINEUP`/`TM_ROTATION`/`TM_BULLPEN` 정리, `FRGN_PLR_CAND.SGND_TM_ID` 해제
+- 부수: `SSNT_EVNT(EVNT_TYPE_CD='FRGN')` 방출 뉴스 자동 생성
 
 ---
 

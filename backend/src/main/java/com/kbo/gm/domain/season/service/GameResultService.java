@@ -467,19 +467,38 @@ public class GameResultService {
 
     private void applyFatigueCondition(List<Map<String, Object>> results, int ssntYr) {
         Random rnd = new Random();
+        // 경기마다 두 팀의 GRSS 시설 레벨을 조회하여 적용 (캐시)
+        Map<Long, Integer> grassLvlCache = new HashMap<>();
         for (Map<String, Object> r : results) {
-            applyTeamFatigue(toLong(r.get("HOME_TM_ID")), ssntYr, rnd);
-            applyTeamFatigue(toLong(r.get("AWAY_TM_ID")), ssntYr, rnd);
+            long homeTmId = toLong(r.get("HOME_TM_ID"));
+            long awayTmId = toLong(r.get("AWAY_TM_ID"));
+            applyTeamFatigue(homeTmId, ssntYr, rnd, grassLevelOf(homeTmId, grassLvlCache));
+            applyTeamFatigue(awayTmId, ssntYr, rnd, grassLevelOf(awayTmId, grassLvlCache));
         }
     }
 
-    private void applyTeamFatigue(long tmId, int ssntYr, Random rnd) {
+    private int grassLevelOf(long tmId, Map<Long, Integer> cache) {
+        return cache.computeIfAbsent(tmId, id -> {
+            Integer lvl = jdbcTemplate.queryForObject(
+                    "SELECT FCLTY_LVL FROM TM_FCLTY WHERE TM_ID = ? AND FCLTY_TYPE_CD = 'GRSS'",
+                    Integer.class, id);
+            return lvl != null ? lvl : 1;
+        });
+    }
+
+    private void applyTeamFatigue(long tmId, int ssntYr, Random rnd, int grassLvl) {
+        // 잔디 시설 레벨 1~5에 따라 피로도 증가 및 컨디션 감소를 "아주 조금" 완화
+        // - 레벨당 fatg 증가량 -0.5 (최대 -2)
+        // - 레벨당 cond 감소 하한 +0.4 (최대 +1.6, 변동성 일부 상쇄)
+        int grassStep = Math.max(0, grassLvl - 1);
         List<Map<String, Object>> lineupRows = mapper.findLineup(tmId);
         for (Map<String, Object> row : lineupRows) {
             long plrId = toLong(row.get("PLR_ID"));
             String reprPosnCd = (String) row.get("REPR_POSN_CD");
-            int fatgDelta = "10".equals(reprPosnCd) ? 12 : 5;
-            int condDelta = rnd.nextInt(8) - 3; // -3 ~ +4
+            int baseFatg = "10".equals(reprPosnCd) ? 12 : 5;
+            int fatgDelta = Math.max(1, baseFatg - (int) Math.round(grassStep * 0.5));
+            int baseCondDelta = rnd.nextInt(8) - 3; // -3 ~ +4
+            int condDelta = baseCondDelta + (int) Math.round(grassStep * 0.4);
             upsertFatigCond(plrId, ssntYr, fatgDelta, condDelta);
         }
     }

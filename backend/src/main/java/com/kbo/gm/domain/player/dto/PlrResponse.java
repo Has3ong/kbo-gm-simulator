@@ -16,6 +16,8 @@ public class PlrResponse {
     private String plrEngNm;         // 선수 영어 이름
     private Integer plrHgt;          // 키 (cm)
     private Integer plrWgt;          // 몸무게 (kg)
+    private Integer plrDrftRnd;      // 드래프트 라운드
+    private Integer plrDrftNo;       // 드래프트 지명 순번 (전체)
     private String plrBatPtchHandCd; // 타격·투구 방향 코드 (RR: 우타우투, LL: 좌타좌투 등)
     private Long plrAnslSal;         // 연봉 (원)
     private String plrNtnlt;         // 국적
@@ -36,6 +38,8 @@ public class PlrResponse {
                 .plrEngNm(dao.getPlrEngNm())
                 .plrHgt(dao.getPlrHgt())
                 .plrWgt(dao.getPlrWgt())
+                .plrDrftRnd(dao.getPlrDrftRnd())
+                .plrDrftNo(dao.getPlrDrftNo())
                 .plrBatPtchHandCd(dao.getPlrBatPtchHandCd())
                 .plrAnslSal(dao.getPlrAnslSal())
                 .plrNtnlt(dao.getPlrNtnlt())

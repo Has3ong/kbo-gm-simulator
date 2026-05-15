@@ -25,7 +25,9 @@ export function useSelectBrdcstSpnsr(onSuccess?: () => void) {
   return useMutation({
     mutationFn: (brdcstCd: string) => broadcastApi.select(brdcstCd),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: broadcastKeys.current })
+      qc.invalidateQueries({ queryKey: broadcastKeys.all })
+      qc.invalidateQueries({ queryKey: ['seasons'] })
+      qc.invalidateQueries({ queryKey: ['teams'] })
       onSuccess?.()
     },
   })

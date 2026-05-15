@@ -9,7 +9,8 @@ INSERT INTO CMN_CD (CD_ID, CD_VAL, CD_NM, CD_ENG_NM, CD_DESC) VALUES
 ('FCLTY_TYPE', 'YUTH', '유소년훈련시설', 'Youth Training Facility',    '2군 선수 및 22세 이하 선수의 능력치 상승 보정 폭 증가'),
 ('FCLTY_TYPE', 'ANLY', '데이터분석시설', 'Data Analytics Facility',    '스카우팅 정보의 정확도 보정'),
 ('FCLTY_TYPE', 'SCTG', '스카우터시설',   'Scouting Facility',          '스카우팅 범위 및 능력 보정'),
-('FCLTY_TYPE', 'CAFE', '사내식당시설',   'Team Cafeteria',             '선수들의 컨디션 상승 보정 폭 증가');
+('FCLTY_TYPE', 'CAFE', '사내식당시설',   'Team Cafeteria',             '선수들의 컨디션 상승 보정 폭 증가'),
+('FCLTY_TYPE', 'GRSS', '경기장 잔디',    'Stadium Grass',              '경기 후 선수 피로도·컨디션 감소 폭 완화 및 부상 위험 감소');
 
 -- ===== CMN_CD: STDM_EXPN_STTS 코드 정의 =====
 DELETE FROM CMN_CD WHERE CD_ID = 'STDM_EXPN_STTS';

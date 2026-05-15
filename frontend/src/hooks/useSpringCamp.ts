@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { springCampApi } from '../api/springCampApi'
 
 export const springCampKeys = {
@@ -13,7 +13,13 @@ export function useSpringCampLocations() {
 }
 
 export function useSelectSpringCamp() {
+  const qc = useQueryClient()
   return useMutation({
     mutationFn: (locationCode: string) => springCampApi.select(locationCode),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['springCamp'] })
+      qc.invalidateQueries({ queryKey: ['seasons'] })
+      qc.invalidateQueries({ queryKey: ['teams'] })
+    },
   })
 }

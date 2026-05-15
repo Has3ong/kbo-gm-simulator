@@ -3,7 +3,7 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Button, Tab, Tabs, Box, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Chip,
-  TextField, CircularProgress, Typography, Alert,
+  TextField, CircularProgress, Typography, Alert, Tooltip,
 } from '@mui/material'
 import { useFrgnPlrCandidates, useMakeFrgnOffer, useStopFrgnPlr, useFrgnSignedInfo } from '../hooks/useFrgnPlr'
 import { formatSalary } from '../utils/format'
@@ -57,6 +57,7 @@ export default function ForeignPlayerModal({ open, onClose, ssntYr }: ForeignPla
   const signedCount = signedInfo?.signedCnt ??
     (candidates as FrgnPlrCandidate[]).filter((c) => c.cntrctSttsCd === 'SIGNED').length
   const maxFrgnPlr = signedInfo?.maxFrgnPlr ?? MAX_FRGN_PLR
+  const isMaxReached = signedCount >= maxFrgnPlr
 
   function handleOffer(candId: number) {
     const sal = parseInt(offerSals[candId] ?? '10000', 10)
@@ -87,36 +88,43 @@ export default function ForeignPlayerModal({ open, onClose, ssntYr }: ForeignPla
   function renderOfferCell(cand: FrgnPlrCandidate) {
     const isAvail = cand.cntrctSttsCd === 'AVAIL'
     const isPending = cand.offerStatus?.offerSttsCd === 'PENDING'
-    const maxReached = signedCount >= maxFrgnPlr
 
     if (isPending) {
       return <Typography variant="caption" sx={{ color: 'primary.main' }}>오퍼진행중</Typography>
     }
     if (!isAvail) return null
+    if (isMaxReached) {
+      return <Typography variant="caption" sx={{ color: 'text.disabled' }}>—</Typography>
+    }
 
     return (
-      <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', minWidth: 160 }}>
-        <TextField
-          size="small"
-          variant="outlined"
-          type="number"
-          placeholder={String(cand.wantSal)}
-          value={offerSals[cand.candId] ?? ''}
-          onChange={(e) =>
-            setOfferSals((prev) => ({ ...prev, [cand.candId]: e.target.value }))
-          }
-          sx={{ width: 90 }}
-          slotProps={{ htmlInput: { min: 1 } }}
-        />
-        <Typography variant="caption" sx={{ flexShrink: 0 }}>만원</Typography>
-        <Button
-          size="small"
-          variant="contained"
-          disabled={maxReached || makeoffer.isPending}
-          onClick={() => handleOffer(cand.candId)}
-        >
-          오퍼
-        </Button>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, minWidth: 180 }}>
+        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+          <TextField
+            size="small"
+            variant="outlined"
+            type="number"
+            placeholder={String(cand.wantSal)}
+            value={offerSals[cand.candId] ?? ''}
+            onChange={(e) =>
+              setOfferSals((prev) => ({ ...prev, [cand.candId]: e.target.value }))
+            }
+            sx={{ width: 90 }}
+            slotProps={{ htmlInput: { min: 1 } }}
+          />
+          <Typography variant="caption" sx={{ flexShrink: 0 }}>만원</Typography>
+          <Button
+            size="small"
+            variant="contained"
+            disabled={makeoffer.isPending}
+            onClick={() => handleOffer(cand.candId)}
+          >
+            오퍼
+          </Button>
+        </Box>
+        <Typography variant="caption" sx={{ color: 'warning.dark', fontSize: 11 }}>
+          희망 {formatSalary(cand.wantSal).display}
+        </Typography>
       </Box>
     )
   }
@@ -134,7 +142,7 @@ export default function ForeignPlayerModal({ open, onClose, ssntYr }: ForeignPla
           <Typography variant="h6" component="span">외국인 선수 계약</Typography>
           <Chip
             label={`현재 ${signedCount}명 / 최대 ${maxFrgnPlr}명`}
-            color={signedCount >= maxFrgnPlr ? 'success' : 'default'}
+            color={isMaxReached ? 'success' : 'default'}
             size="small"
           />
         </Box>
@@ -144,6 +152,11 @@ export default function ForeignPlayerModal({ open, onClose, ssntYr }: ForeignPla
       </DialogTitle>
 
       <DialogContent dividers sx={{ p: 0 }}>
+        {isMaxReached && (
+          <Alert severity="info" sx={{ m: 2 }}>
+            외국인 선수를 최대 인원({maxFrgnPlr}명)까지 보유 중입니다. 추가 영입을 원한다면 먼저 기존 선수의 계약을 해지해주세요.
+          </Alert>
+        )}
         {makeoffer.isError && (
           <Alert severity="error" sx={{ m: 2 }}>
             오퍼 전송에 실패했습니다.
@@ -226,10 +239,16 @@ export default function ForeignPlayerModal({ open, onClose, ssntYr }: ForeignPla
                         <TableCell align="right">{statVal(cand.stats, 'SB')}</TableCell>
                       </>
                     )}
-                    <TableCell>
-                      <Typography variant="caption" noWrap title={formatSalary(cand.wantSal).tooltip}>
-                        {formatSalary(cand.wantSal).display}
-                      </Typography>
+                    <TableCell align="right" sx={{ bgcolor: 'warning.lighter', fontWeight: 'bold' }}>
+                      <Tooltip title={formatSalary(cand.wantSal).tooltip} arrow>
+                        <Typography
+                          variant="body2"
+                          noWrap
+                          sx={{ fontWeight: 'bold', color: 'warning.dark', cursor: 'default' }}
+                        >
+                          {formatSalary(cand.wantSal).display}
+                        </Typography>
+                      </Tooltip>
                     </TableCell>
                     <TableCell>{renderOfferCell(cand)}</TableCell>
                     <TableCell>{getStatusChip(cand)}</TableCell>

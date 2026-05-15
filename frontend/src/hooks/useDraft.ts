@@ -65,6 +65,8 @@ export function usePick(drftId: number, ssntYr: number) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: draftKeys.byYear(ssntYr) })
       qc.invalidateQueries({ queryKey: ['draft', drftId] })
+      qc.invalidateQueries({ queryKey: ['players'] })
+      qc.invalidateQueries({ queryKey: ['teams'] })
     },
   })
 }
@@ -76,6 +78,9 @@ export function useSimulate(drftId: number, ssntYr: number) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: draftKeys.byYear(ssntYr) })
       qc.invalidateQueries({ queryKey: ['draft', drftId] })
+      qc.invalidateQueries({ queryKey: ['players'] })
+      qc.invalidateQueries({ queryKey: ['teams'] })
+      qc.invalidateQueries({ queryKey: ['seasons'] })
     },
   })
 }

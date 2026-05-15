@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useStaffs } from '../../hooks/useStaffs'
 import { useTeams } from '../../hooks/useTeams'
+import { useGame } from '../../contexts/GameContext'
 import { STFF_TYPE_LABEL } from '../../types/staff'
 
 export function useStaffPage() {
-  const [selectedTmId, setSelectedTmId] = useState<number | undefined>(undefined)
+  const { currentGame } = useGame()
+  const [selectedTmId, setSelectedTmId] = useState<number | undefined>(currentGame?.userTeamId ?? undefined)
   const [stffTypeCd, setStffTypeCd] = useState<string | undefined>(undefined)
 
   const { data: teams } = useTeams()

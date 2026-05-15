@@ -64,7 +64,7 @@ public class FrgnPlrService {
         // 후보 + 팀명 조인
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
             "SELECT c.CAND_ID, c.PLR_NM, c.NTLY_CD, c.AGE, c.PLR_TYPE_CD, c.REPR_POSN_CD," +
-            "       c.PRV_LG_NM, c.CNTRCT_STTS_CD, c.SGND_TM_ID," +
+            "       c.PRV_LG_NM, c.WANT_SAL, c.CNTRCT_STTS_CD, c.SGND_TM_ID," +
             "       t.TM_KR_NM AS SGND_TM_NM" +
             " FROM FRGN_PLR_CAND c" +
             " LEFT JOIN TM t ON t.TM_ID = c.SGND_TM_ID" +
@@ -158,11 +158,9 @@ public class FrgnPlrService {
         String stts = str(cand.get("CNTRCT_STTS_CD"));
         if (!"AVAIL".equals(stts)) throw new IllegalStateException("이미 계약이 완료된 선수입니다.");
 
-        // 최대 외국인 3명 검사
-        Integer signedCnt = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM FRGN_PLR_CAND WHERE SGND_TM_ID=? AND SSNT_YR=?",
-            Integer.class, userTmId, ssntYr);
-        if (signedCnt != null && signedCnt >= 3) {
+        // 최대 외국인 3명 검사 (현재 로스터 기준)
+        int signedCnt = countActiveFrgnPlrs(userTmId);
+        if (signedCnt >= MAX_FRGN_PLR) {
             throw new IllegalStateException("외국인 선수는 최대 3명까지만 영입할 수 있습니다.");
         }
 
@@ -185,21 +183,95 @@ public class FrgnPlrService {
     }
 
     /**
-     * 유저 팀의 외국인 선수 계약 현황 조회
+     * 유저 팀의 외국인 선수 계약 현황 조회 (현재 로스터 기준)
      */
     public Map<String, Object> getSignedInfo(int ssntYr) {
         Long userTmId = GameUtil.getUserTmId(jdbcTemplate);
-        int signedCnt = 0;
-        if (userTmId != null) {
-            Integer cnt = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM FRGN_PLR_CAND WHERE SGND_TM_ID=? AND SSNT_YR=?",
-                Integer.class, userTmId, ssntYr);
-            signedCnt = cnt != null ? cnt : 0;
-        }
+        int signedCnt = userTmId != null ? countActiveFrgnPlrs(userTmId) : 0;
+
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("signedCnt", signedCnt);
         result.put("maxFrgnPlr", MAX_FRGN_PLR);
         return result;
+    }
+
+    /** 팀의 현재 로스터에 있는 외국인 선수 수 (AT 상태만) */
+    private int countActiveFrgnPlrs(long tmId) {
+        Integer cnt = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM PLR WHERE TM_ID=? AND PLR_FRGN_YN='1' AND PLR_STTS_CD='AT'",
+            Integer.class, tmId);
+        return cnt != null ? cnt : 0;
+    }
+
+    /**
+     * 유저 팀 외국인 선수 계약 해지 (방출)
+     * - PLR.TM_ID=NULL, PLR_STTS_CD='REL'
+     * - PLR_TM, PLR_TM_CNTRCT 종료 처리
+     * - 현 시즌 PLR_ENTY 삭제, PLR_LINEUP/PLR_ROTATION/PLR_BULLPEN에서 제거
+     * - FRGN_PLR_CAND.SGND_TM_ID 정리 → 같은 시즌에 다른 외국인 영입 가능
+     */
+    @Transactional
+    public void releaseForeignPlayer(long plrId) {
+        Long userTmId = GameUtil.getUserTmId(jdbcTemplate);
+        if (userTmId == null) throw new IllegalStateException("유저 팀 정보가 없습니다.");
+
+        Map<String, Object> plr;
+        try {
+            plr = jdbcTemplate.queryForMap(
+                "SELECT PLR_NM, TM_ID, PLR_FRGN_YN, PLR_STTS_CD FROM PLR WHERE PLR_ID=?", plrId);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("선수를 찾을 수 없습니다: " + plrId);
+        }
+        long tmId = toLong(plr.get("TM_ID"));
+        String frgnYn = str(plr.get("PLR_FRGN_YN"));
+        String sttsCd = str(plr.get("PLR_STTS_CD"));
+        String plrNm  = str(plr.get("PLR_NM"));
+
+        if (!"1".equals(frgnYn)) throw new IllegalStateException("외국인 선수만 계약 해지할 수 있습니다.");
+        if (tmId != userTmId) throw new IllegalStateException("자신의 팀 선수만 계약 해지할 수 있습니다.");
+        if (!"AT".equals(sttsCd)) throw new IllegalStateException("이미 방출된 선수입니다.");
+
+        Integer ssntYr = jdbcTemplate.queryForObject(
+            "SELECT SSNT_YR FROM SSNT ORDER BY SSNT_YR DESC LIMIT 1", Integer.class);
+        String curDt = getCurrentDate();
+        if (ssntYr == null || curDt == null) throw new IllegalStateException("시즌 정보가 없습니다.");
+
+        // 1. PLR 방출 처리
+        jdbcTemplate.update(
+            "UPDATE PLR SET PLR_STTS_CD='REL', TM_ID=NULL WHERE PLR_ID=?", plrId);
+
+        // 2. PLR_TM 종료
+        jdbcTemplate.update(
+            "UPDATE PLR_TM SET TM_END_DT=? WHERE PLR_ID=? AND TM_ID=? AND TM_END_DT IS NULL",
+            curDt, plrId, tmId);
+
+        // 3. PLR_TM_CNTRCT 종료
+        jdbcTemplate.update(
+            "UPDATE PLR_TM_CNTRCT SET FA_CNTRCT_END_DT=? WHERE PLR_ID=? AND TM_ID=? AND " +
+            "(FA_CNTRCT_END_DT IS NULL OR FA_CNTRCT_END_DT > ?)",
+            curDt, plrId, tmId, curDt);
+
+        // 4. 이번 시즌 엔트리/라인업/로테이션/불펜 제거
+        jdbcTemplate.update("DELETE FROM PLR_ENTY WHERE PLR_ID=? AND SSNT_YR=?", plrId, ssntYr);
+        jdbcTemplate.update("DELETE FROM TM_LINEUP WHERE PLR_ID=? AND TM_ID=?", plrId, tmId);
+        jdbcTemplate.update("DELETE FROM TM_ROTATION WHERE PLR_ID=? AND TM_ID=?", plrId, tmId);
+        jdbcTemplate.update("DELETE FROM TM_BULLPEN WHERE PLR_ID=? AND TM_ID=?", plrId, tmId);
+
+        // 5. FRGN_PLR_CAND 정리 (현 시즌, 이름 매칭)
+        jdbcTemplate.update(
+            "UPDATE FRGN_PLR_CAND SET SGND_TM_ID=NULL, CNTRCT_STTS_CD='RELEASED' " +
+            "WHERE SSNT_YR=? AND SGND_TM_ID=? AND PLR_NM=?",
+            ssntYr, tmId, plrNm);
+
+        // 6. 방출 뉴스 생성
+        jdbcTemplate.update(
+            "INSERT INTO SSNT_EVNT (SSNT_YR, EVNT_DT, TM_ID, PLR_ID, EVNT_TYPE_CD, EVNT_TTLT, EVNT_CNTS, RD_YN) " +
+            "VALUES (?,?,?,?,'FRGN',?,?,'0')",
+            ssntYr, curDt, tmId, plrId,
+            plrNm + " 외국인 선수 방출",
+            "외국인 선수 " + plrNm + "와의 계약이 해지되었습니다.\n방출일: " + curDt);
+
+        log.info("외국인 선수 계약 해지: plrId={} tmId={} 이름={}", plrId, tmId, plrNm);
     }
 
     /**
@@ -400,11 +472,8 @@ public class FrgnPlrService {
             long tmId = toLong(tm.get("TM_ID"));
             if (userTmId != null && tmId == userTmId) continue;
 
-            // 이미 3명 외국인 보유 시 스킵
-            Integer signedCnt = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM FRGN_PLR_CAND WHERE SGND_TM_ID=? AND SSNT_YR=?",
-                Integer.class, tmId, ssntYr);
-            if (signedCnt != null && signedCnt >= 3) continue;
+            // 이미 3명 외국인 보유 시 스킵 (현재 로스터 기준)
+            if (countActiveFrgnPlrs(tmId) >= MAX_FRGN_PLR) continue;
 
             // 1~2개 오퍼
             int offerCnt = 1 + rnd.nextInt(2);

@@ -35,6 +35,9 @@ public interface GameStartMapper {
     // ----- STND 배치 삽입 -----
     void insertStndBatch(@Param("list") List<Map<String, Object>> list);
 
+    // ----- TM_FNC_SSNT 초기 예산 배치 삽입 (각 팀 시작 현금 100억=1,000,000만원) -----
+    void insertTmFncInitBatch(@Param("list") List<Map<String, Object>> list);
+
     // ----- PLR_ENTY 배치 삽입 -----
     void insertEntyBatch(@Param("list") List<Map<String, Object>> list);
 
