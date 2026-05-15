@@ -1,0 +1,370 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kbo.gm.domain.season.mapper.SeasonEndMapper">
+
+    <!-- ===== Step 1: 시즌 정보 조회 ===== -->
+    <select id="findSsntInfo" resultType="map">
+        SELECT
+            S.SSNT_YR,
+            S.SSNT_STTS_CD,
+            S.CUR_DT,
+            S.SSNT_END_DT,
+            S.REG_SSNT_BGNG_DT
+        FROM SSNT S
+        WHERE S.SSNT_YR = #{ssntYr}
+    </select>
+
+    <!-- ===== Step 2: 현재 순위 조회 (재정렬용) ===== -->
+    <select id="findCurrentStnd" resultType="map">
+        SELECT
+            ST.TM_ID,
+            T.TM_KR_NM,
+            ST.W,
+            ST.L,
+            ST.T,
+            ST.PCT,
+            ST.STND_RNK
+        FROM STND ST
+            JOIN TM T ON T.TM_ID = ST.TM_ID
+        WHERE ST.SSNT_YR = #{ssntYr}
+        ORDER BY ST.PCT DESC, ST.W DESC
+    </select>
+
+    <!-- ===== Step 3: 챔피언 조회 (1위팀) ===== -->
+    <select id="findChampion" resultType="map">
+        SELECT
+            ST.TM_ID,
+            T.TM_KR_NM,
+            ST.W,
+            ST.L,
+            ST.T,
+            ST.PCT,
+            ST.STND_RNK
+        FROM STND ST
+            JOIN TM T ON T.TM_ID = ST.TM_ID
+        WHERE ST.SSNT_YR = #{ssntYr}
+          AND ST.STND_RNK = 1
+        LIMIT 1
+    </select>
+
+    <!-- ===== Step 4: 타자 시즌 기록 집계 (월별 → 시즌 합산) ===== -->
+    <select id="aggregateBatterSeasonStats" resultType="map">
+        SELECT
+            B.PLR_ID,
+            B.TM_ID,
+            B.SSNT_YR,
+            SUM(B.G)    AS G,
+            SUM(B.PA)   AS PA,
+            SUM(B.AB)   AS AB,
+            SUM(B.H)    AS H,
+            SUM(B.DOBL) AS DOBL,
+            SUM(B.TRPL) AS TRPL,
+            SUM(B.HR)   AS HR,
+            SUM(B.RBI)  AS RBI,
+            SUM(B.R)    AS R,
+            SUM(B.BB)   AS BB,
+            SUM(B.IBB)  AS IBB,
+            SUM(B.SO)   AS SO,
+            SUM(B.SB)   AS SB,
+            SUM(B.CS)   AS CS,
+            SUM(B.HBP)  AS HBP,
+            SUM(B.SAC)  AS SAC,
+            SUM(B.SF)   AS SF,
+            SUM(B.GIDP) AS GIDP,
+            -- 타율 = H / AB
+            CASE WHEN SUM(B.AB) > 0 THEN ROUND(SUM(B.H) / SUM(B.AB), 4) ELSE NULL END AS BA,
+            -- 출루율 = (H + BB + HBP) / PA
+            CASE WHEN SUM(B.PA) > 0
+                THEN ROUND((SUM(B.H) + SUM(B.BB) + SUM(B.HBP)) / SUM(B.PA), 4)
+                ELSE NULL END AS OBP,
+            -- 장타율 = (H + DOBL + 2*TRPL + 3*HR) / AB
+            CASE WHEN SUM(B.AB) > 0
+                THEN ROUND((SUM(B.H) + SUM(B.DOBL) + 2 * SUM(B.TRPL) + 3 * SUM(B.HR)) / SUM(B.AB), 4)
+                ELSE NULL END AS SLG
+        FROM PLR_BATR_MON_REC B
+        WHERE B.SSNT_YR = #{ssntYr}
+        GROUP BY B.PLR_ID, B.TM_ID, B.SSNT_YR
+    </select>
+
+    <!-- ===== Step 4: 투수 시즌 기록 집계 (월별 → 시즌 합산) ===== -->
+    <select id="aggregatePitcherSeasonStats" resultType="map">
+        SELECT
+            P.PLR_ID,
+            P.TM_ID,
+            P.SSNT_YR,
+            SUM(P.G)      AS G,
+            SUM(P.GS)     AS GS,
+            SUM(P.IP_OUT) AS IP_OUT,
+            SUM(P.BF)     AS BF,
+            SUM(P.H)      AS H,
+            SUM(P.HR)     AS HR,
+            SUM(P.R)      AS R,
+            SUM(P.ER)     AS ER,
+            SUM(P.BB)     AS BB,
+            SUM(P.IBB)    AS IBB,
+            SUM(P.SO)     AS SO,
+            SUM(P.HBP)    AS HBP,
+            SUM(P.W)      AS W,
+            SUM(P.L)      AS L,
+            SUM(P.SV)     AS SV,
+            SUM(P.HLD)    AS HLD,
+            -- ERA = 9 * ER / IP (IP = IP_OUT / 3)
+            CASE WHEN SUM(P.IP_OUT) > 0
+                THEN ROUND(9.0 * SUM(P.ER) / (SUM(P.IP_OUT) / 3.0), 2)
+                ELSE NULL END AS ERA,
+            -- WHIP = (BB + H) / IP
+            CASE WHEN SUM(P.IP_OUT) > 0
+                THEN ROUND((SUM(P.BB) + SUM(P.H)) / (SUM(P.IP_OUT) / 3.0), 2)
+                ELSE NULL END AS WHIP
+        FROM PLR_PTCH_MON_REC P
+        WHERE P.SSNT_YR = #{ssntYr}
+        GROUP BY P.PLR_ID, P.TM_ID, P.SSNT_YR
+    </select>
+
+    <!-- ===== Step 5: 골든글러브 — 투수 ===== -->
+    <!-- IP_OUT >= 120 (40이닝), ERA 최저 -->
+    <select id="findGoldenGlovePitcher" resultType="map">
+        SELECT
+            R.PLR_ID,
+            P.PLR_NM,
+            T.TM_KR_NM,
+            R.IP_OUT,
+            R.ERA,
+            R.W
+        FROM PLR_PTCH_SSNT_REC R
+            JOIN PLR P ON P.PLR_ID = R.PLR_ID
+            JOIN TM T ON T.TM_ID = R.TM_ID
+        WHERE R.SSNT_YR = #{ssntYr}
+          AND R.IP_OUT >= 120
+          AND R.ERA IS NOT NULL
+        ORDER BY R.ERA ASC
+        LIMIT 1
+    </select>
+
+    <!-- ===== Step 5: 골든글러브 — 야수 (포지션별 최고 OPS) ===== -->
+    <!-- 각 포지션(20~28)에서 PA >= 200, OPS 최고 선수 -->
+    <select id="findGoldenGloveFielders" resultType="map">
+        SELECT
+            sub.PLR_ID,
+            sub.PLR_NM,
+            sub.TM_KR_NM,
+            sub.POSN_CD,
+            sub.PA,
+            sub.OPS
+        FROM (
+            SELECT
+                R.PLR_ID,
+                P.PLR_NM,
+                T.TM_KR_NM,
+                PP.POSN_CD,
+                R.PA,
+                ROUND(
+                    COALESCE(R.OBP, 0) + COALESCE(R.SLG, 0),
+                    4
+                ) AS OPS,
+                ROW_NUMBER() OVER (
+                    PARTITION BY PP.POSN_CD
+                    ORDER BY (COALESCE(R.OBP, 0) + COALESCE(R.SLG, 0)) DESC
+                ) AS RN
+            FROM PLR_BATR_SSNT_REC R
+                JOIN PLR P ON P.PLR_ID = R.PLR_ID
+                JOIN TM T ON T.TM_ID = R.TM_ID
+                JOIN PLR_POSN PP ON PP.PLR_ID = R.PLR_ID
+                    AND PP.POSN_CD BETWEEN '20' AND '28'
+            WHERE R.SSNT_YR = #{ssntYr}
+              AND R.PA >= 200
+        ) sub
+        WHERE sub.RN = 1
+        ORDER BY sub.POSN_CD
+    </select>
+
+    <!-- ===== Step 6: 시즌 MVP 타자 (PA >= 400, OPS 최고) ===== -->
+    <select id="findSeasonMvpBatter" resultType="map">
+        SELECT
+            R.PLR_ID,
+            P.PLR_NM,
+            T.TM_KR_NM,
+            R.PA,
+            R.HR,
+            R.RBI,
+            R.BA,
+            R.OBP,
+            R.SLG,
+            ROUND(COALESCE(R.OBP, 0) + COALESCE(R.SLG, 0), 4) AS OPS
+        FROM PLR_BATR_SSNT_REC R
+            JOIN PLR P ON P.PLR_ID = R.PLR_ID
+            JOIN TM T ON T.TM_ID = R.TM_ID
+        WHERE R.SSNT_YR = #{ssntYr}
+          AND R.PA >= 400
+        ORDER BY (COALESCE(R.OBP, 0) + COALESCE(R.SLG, 0)) DESC
+        LIMIT 1
+    </select>
+
+    <!-- ===== Step 6: 시즌 MVP 투수 (IP_OUT >= 300, ERA 최저) ===== -->
+    <select id="findSeasonMvpPitcher" resultType="map">
+        SELECT
+            R.PLR_ID,
+            P.PLR_NM,
+            T.TM_KR_NM,
+            R.IP_OUT,
+            R.ERA,
+            R.W,
+            R.SO,
+            R.WHIP
+        FROM PLR_PTCH_SSNT_REC R
+            JOIN PLR P ON P.PLR_ID = R.PLR_ID
+            JOIN TM T ON T.TM_ID = R.TM_ID
+        WHERE R.SSNT_YR = #{ssntYr}
+          AND R.IP_OUT >= 300
+          AND R.ERA IS NOT NULL
+        ORDER BY R.ERA ASC
+        LIMIT 1
+    </select>
+
+    <!-- ===== Step 7: 팀 최종 순위 (팬 만족도 조정용) ===== -->
+    <select id="findTeamFinalStnd" resultType="map">
+        SELECT
+            ST.TM_ID,
+            ST.STND_RNK,
+            ST.W,
+            ST.L,
+            ST.PCT
+        FROM STND ST
+        WHERE ST.SSNT_YR = #{ssntYr}
+        ORDER BY ST.STND_RNK
+    </select>
+
+    <!-- ===== Step 7: 팀 마케팅 정보 (만족도 조회용) ===== -->
+    <select id="findTeamMktSsnt" resultType="map">
+        SELECT
+            TM_ID,
+            FAN_STSFCTN,
+            OWN_STSFCTN
+        FROM TM_MKT_SSNT
+        WHERE SSNT_YR = #{ssntYr}
+    </select>
+
+    <!-- ===== Step 8: 팀 재정 조회 ===== -->
+    <select id="findTeamFinance" resultType="map">
+        SELECT
+            TM_ID,
+            TCKT_REV,
+            BCST_REV,
+            PLR_SAL_COST,
+            CUR_CASH
+        FROM TM_FNC_SSNT
+        WHERE SSNT_YR = #{ssntYr}
+    </select>
+
+    <!-- ===== Step 9: 성장·노화 대상 선수 조회 ===== -->
+    <!-- 활동 중인 선수 전원 (FA 포함) -->
+    <select id="findPlayersForGrowth" resultType="map">
+        SELECT
+            P.PLR_ID,
+            P.PLR_OVRL_ABLT,
+            P.PLR_POT_ABLT,
+            P.PLR_STTS_CD
+        FROM PLR P
+        WHERE P.PLR_STTS_CD IN ('AT', 'INJ', 'FA')
+    </select>
+
+    <!-- ===== Step 10: 계약 만료 선수 조회 ===== -->
+    <select id="findExpiredContracts" resultType="map">
+        SELECT
+            PC.PLR_ID,
+            PC.TM_ID,
+            PC.FA_CNTRCT_BGNG_DT,
+            PC.FA_CNTRCT_END_DT,
+            P.PLR_NM,
+            T.TM_KR_NM
+        FROM PLR_TM_CNTRCT PC
+            JOIN PLR P ON P.PLR_ID = PC.PLR_ID
+            LEFT JOIN TM T ON T.TM_ID = PC.TM_ID
+        WHERE PC.FA_CNTRCT_END_DT IS NOT NULL
+          AND PC.FA_CNTRCT_END_DT &lt;= #{ssntEndDt}
+          AND P.PLR_STTS_CD = 'AT'
+    </select>
+
+    <!-- ===== Step 11: 은퇴 후보 조회 ===== -->
+    <!-- FA 상태이며 능력치·잠재력 모두 낮은 선수 -->
+    <select id="findRetirementCandidates" resultType="map">
+        SELECT
+            P.PLR_ID,
+            P.PLR_NM,
+            P.PLR_OVRL_ABLT,
+            P.PLR_POT_ABLT
+        FROM PLR P
+        WHERE P.PLR_STTS_CD = 'FA'
+          AND P.PLR_OVRL_ABLT &lt;= 40
+          AND P.PLR_POT_ABLT &lt;= 50
+    </select>
+
+    <!-- ===== 유저 팀 ID 조회 ===== -->
+    <select id="findUserTmId" resultType="java.lang.Long">
+        SELECT CFG_VAL
+        FROM GAME_CFG
+        WHERE CFG_KEY = 'USER_TM_ID'
+    </select>
+
+    <!-- ===== 유저 팀 시즌 최고 타자 ===== -->
+    <select id="findUserTeamSeasonBestBatter" resultType="map">
+        SELECT
+            R.PLR_ID,
+            P.PLR_NM,
+            R.PA,
+            R.HR,
+            R.RBI,
+            R.BA,
+            ROUND(COALESCE(R.OBP, 0) + COALESCE(R.SLG, 0), 4) AS OPS
+        FROM PLR_BATR_SSNT_REC R
+            JOIN PLR P ON P.PLR_ID = R.PLR_ID
+        WHERE R.SSNT_YR = #{ssntYr}
+          AND R.TM_ID = #{tmId}
+          AND R.PA >= 100
+        ORDER BY (COALESCE(R.OBP, 0) + COALESCE(R.SLG, 0)) DESC
+        LIMIT 1
+    </select>
+
+    <!-- ===== 유저 팀 시즌 최고 투수 ===== -->
+    <select id="findUserTeamSeasonBestPitcher" resultType="map">
+        SELECT
+            R.PLR_ID,
+            P.PLR_NM,
+            R.IP_OUT,
+            R.ERA,
+            R.W,
+            R.SO
+        FROM PLR_PTCH_SSNT_REC R
+            JOIN PLR P ON P.PLR_ID = R.PLR_ID
+        WHERE R.SSNT_YR = #{ssntYr}
+          AND R.TM_ID = #{tmId}
+          AND R.IP_OUT >= 60
+          AND R.ERA IS NOT NULL
+        ORDER BY R.ERA ASC
+        LIMIT 1
+    </select>
+
+    <!-- ===== 유저 팀 재정 조회 ===== -->
+    <select id="findUserTeamFinance" resultType="map">
+        SELECT
+            TCKT_REV,
+            BCST_REV,
+            PLR_SAL_COST,
+            CUR_CASH
+        FROM TM_FNC_SSNT
+        WHERE TM_ID = #{tmId}
+          AND SSNT_YR = #{ssntYr}
+    </select>
+
+    <!-- ===== 이벤트 배치 삽입 ===== -->
+    <insert id="insertEvntBatch">
+        INSERT INTO SSNT_EVNT (SSNT_YR, EVNT_DT, TM_ID, EVNT_TYPE_CD, EVNT_TTLT, EVNT_CNTS)
+        VALUES
+        <foreach collection="list" item="e" separator=",">
+            (#{e.ssntYr}, #{e.evntDt}, #{e.tmId}, #{e.evntTypeCd}, #{e.evntTtlt}, #{e.evntCnts})
+        </foreach>
+    </insert>
+
+</mapper>

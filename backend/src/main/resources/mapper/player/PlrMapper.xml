@@ -1,0 +1,287 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kbo.gm.domain.player.mapper.PlrMapper">
+
+    <select id="findAll" resultType="com.kbo.gm.domain.player.dao.PlrDao">
+        SELECT P.PLR_ID, P.PLR_NM, P.PLR_ENG_NM, P.PLR_HGT, P.PLR_WGT,
+               P.PLR_BAT_PTCH_HAND_CD, P.PLR_ANSL_SAL, P.PLR_NTNLT, P.PLR_FRGN_YN,
+               P.PLR_STTS_CD, P.PLR_OVRL_ABLT, P.PLR_POT_ABLT,
+               T.TM_ID, T.TM_KR_NM, T.TM_SHRT_KR_NM,
+               PC.REPR_POSN_CD,
+               RC.CD_NM AS REPR_POSN_NM
+        FROM PLR P
+                 LEFT JOIN TM T ON T.TM_ID = P.TM_ID
+                 LEFT JOIN (
+            SELECT PLR_ID, REPR_POSN_CD
+            FROM PLR_TM_CNTRCT
+            WHERE FA_CNTRCT_END_DT >= CURDATE()
+              OR FA_CNTRCT_END_DT IS NULL
+            GROUP BY PLR_ID
+        ) PC ON PC.PLR_ID = P.PLR_ID
+                 LEFT JOIN CMN_CD RC ON RC.CD_ID = 'REPR_POSN' AND RC.CD_VAL = PC.REPR_POSN_CD
+        <where>
+            <if test="tmId != null">AND P.TM_ID = #{tmId}</if>
+            <if test="plrSttsCd != null and plrSttsCd != ''">AND P.PLR_STTS_CD = #{plrSttsCd}</if>
+        </where>
+        ORDER BY P.TM_ID, P.PLR_ID
+    </select>
+
+    <select id="findById" resultType="com.kbo.gm.domain.player.dao.PlrDao">
+        SELECT P.PLR_ID, P.PLR_NM, P.PLR_ENG_NM, P.PLR_HGT, P.PLR_WGT,
+               P.PLR_BAT_PTCH_HAND_CD, P.PLR_ANSL_SAL, P.PLR_NTNLT, P.PLR_FRGN_YN,
+               P.PLR_STTS_CD, P.PLR_OVRL_ABLT, P.PLR_POT_ABLT,
+               T.TM_ID, T.TM_KR_NM, T.TM_SHRT_KR_NM,
+               PC.REPR_POSN_CD,
+               RC.CD_NM AS REPR_POSN_NM
+        FROM PLR P
+                 LEFT JOIN TM T ON T.TM_ID = P.TM_ID
+                 LEFT JOIN (
+            SELECT PLR_ID, REPR_POSN_CD
+            FROM PLR_TM_CNTRCT
+            WHERE FA_CNTRCT_END_DT >= CURDATE()
+              OR FA_CNTRCT_END_DT IS NULL
+            GROUP BY PLR_ID
+        ) PC ON PC.PLR_ID = P.PLR_ID
+                 LEFT JOIN CMN_CD RC ON RC.CD_ID = 'REPR_POSN' AND RC.CD_VAL = PC.REPR_POSN_CD
+        WHERE P.PLR_ID = #{plrId}
+    </select>
+
+    <select id="findAbilities" resultType="com.kbo.gm.domain.player.dao.PlrAbltDao">
+        SELECT A.PLR_ID, A.ABLT_CD, C.CD_NM AS ABLT_NM, C.CD_ENG_NM AS ABLT_ENG_NM, A.ABLT_VAL
+        FROM PLR_ABLT A
+                 LEFT JOIN CMN_CD C ON C.CD_ID = 'ABLT' AND C.CD_VAL = A.ABLT_CD
+        WHERE A.PLR_ID = #{plrId}
+        ORDER BY A.ABLT_CD
+    </select>
+
+    <select id="findPositions" resultType="com.kbo.gm.domain.player.dao.PlrPosnDao">
+        SELECT PP.PLR_ID, PP.POSN_CD, C.CD_NM AS POSN_NM, PP.POSN_PRFC_ABLT
+        FROM PLR_POSN PP
+                 LEFT JOIN CMN_CD C ON C.CD_ID = 'POSN' AND C.CD_VAL = PP.POSN_CD
+        WHERE PP.PLR_ID = #{plrId}
+        ORDER BY PP.POSN_CD
+    </select>
+
+    <select id="findTraits" resultType="com.kbo.gm.domain.player.dao.PlrTrtDao">
+        SELECT PT.PLR_ID, PT.TRT_CD, C.CD_NM AS TRT_NM, C.CD_ENG_NM AS TRT_ENG_NM, C.CD_DESC AS TRT_DESC
+        FROM PLR_TRT PT
+                 LEFT JOIN CMN_CD C ON C.CD_ID = 'PLR_TRT_TYPE' AND C.CD_VAL = PT.TRT_CD
+        WHERE PT.PLR_ID = #{plrId}
+    </select>
+
+    <select id="findCurrentContract" resultType="com.kbo.gm.domain.player.dao.PlrCntrctDao">
+        SELECT C.PLR_ID, C.TM_ID, T.TM_KR_NM,
+               C.FA_CNTRCT_BGNG_DT, C.FA_CNTRCT_END_DT, C.FA_AMT,
+               C.REPR_POSN_CD, C.CNTRCT_TYPE_CD,
+               CD.CD_NM AS CNTRCT_TYPE_NM
+        FROM PLR_TM_CNTRCT C
+                 LEFT JOIN TM T ON T.TM_ID = C.TM_ID
+                 LEFT JOIN CMN_CD CD ON CD.CD_ID = 'CNTRCT_TYPE' AND CD.CD_VAL = C.CNTRCT_TYPE_CD
+        WHERE C.PLR_ID = #{plrId}
+          AND (C.FA_CNTRCT_END_DT >= CURDATE() OR C.FA_CNTRCT_END_DT IS NULL)
+        ORDER BY C.FA_CNTRCT_BGNG_DT DESC
+        LIMIT 1
+    </select>
+
+    <!-- ===== 계약 이력 ===== -->
+    <select id="findContractHistory" resultType="com.kbo.gm.domain.player.dao.PlrCntrctHistDao">
+        SELECT H.PLR_ID, H.TM_ID, T.TM_KR_NM,
+               H.HIST_SEQ, H.HIST_DT,
+               H.FA_CNTRCT_BGNG_DT, H.FA_CNTRCT_END_DT, H.FA_AMT,
+               H.REPR_POSN_CD, H.CNTRCT_TYPE_CD,
+               CD.CD_NM AS CNTRCT_TYPE_NM
+        FROM PLR_TM_CNTRCT_HIST H
+                 LEFT JOIN TM T ON T.TM_ID = H.TM_ID
+                 LEFT JOIN CMN_CD CD ON CD.CD_ID = 'CNTRCT_TYPE' AND CD.CD_VAL = H.CNTRCT_TYPE_CD
+        WHERE H.PLR_ID = #{plrId}
+        ORDER BY H.HIST_DT DESC
+    </select>
+
+    <!-- ===== 연봉 이력 ===== -->
+    <select id="findSalaryHistory" resultType="com.kbo.gm.domain.player.dao.PlrAnslSalHistDao">
+        SELECT PLR_ID, SSNT_YR, ANSL_SAL
+        FROM PLR_ANSL_SAL_HIST
+        WHERE PLR_ID = #{plrId}
+        ORDER BY SSNT_YR DESC
+    </select>
+
+    <!-- ===== 성장 이력 (시즌별 능력치 스냅샷) ===== -->
+    <select id="findAbilityHistory" resultType="com.kbo.gm.domain.player.dao.PlrAbltSsntDao">
+        SELECT A.PLR_ID, A.SSNT_YR, A.ABLT_CD,
+               C.CD_NM AS ABLT_NM,
+               A.ABLT_VAL,
+               CASE
+                   WHEN A.ABLT_VAL >= 76 THEN 'S+'
+                   WHEN A.ABLT_VAL >= 71 THEN 'S'
+                   WHEN A.ABLT_VAL >= 66 THEN 'S-'
+                   WHEN A.ABLT_VAL >= 61 THEN 'A+'
+                   WHEN A.ABLT_VAL >= 56 THEN 'A'
+                   WHEN A.ABLT_VAL >= 51 THEN 'A-'
+                   WHEN A.ABLT_VAL >= 46 THEN 'B+'
+                   WHEN A.ABLT_VAL >= 41 THEN 'B'
+                   WHEN A.ABLT_VAL >= 36 THEN 'B-'
+                   WHEN A.ABLT_VAL >= 31 THEN 'C+'
+                   WHEN A.ABLT_VAL >= 26 THEN 'C'
+                   WHEN A.ABLT_VAL >= 23 THEN 'C-'
+                   ELSE 'D'
+               END AS ABLT_GRADE
+        FROM PLR_ABLT_SSNT A
+                 LEFT JOIN CMN_CD C ON C.CD_ID = 'ABLT' AND C.CD_VAL = A.ABLT_CD
+        WHERE A.PLR_ID = #{plrId}
+        ORDER BY A.SSNT_YR DESC, A.ABLT_CD
+    </select>
+
+    <!-- ===== 타자 시즌 성적 ===== -->
+    <select id="findBatterSeasonStats" resultType="com.kbo.gm.domain.player.dao.PlrBatrSsntRecDao">
+        SELECT R.PLR_ID, R.SSNT_YR,
+               T.TM_ID, T.TM_KR_NM, T.TM_SHRT_ENG_NM,
+               R.G, R.PA, R.AB, R.H, R.DOBL, R.TRPL, R.HR,
+               R.RBI, R.R, R.BB, R.SO, R.SB, R.CS, R.HBP,
+               R.BA, R.OBP, R.SLG, R.OPS
+        FROM PLR_BATR_SSNT_REC R
+                 LEFT JOIN PLR_BATR_TM_SSNT_REC PT ON PT.PLR_ID = R.PLR_ID AND PT.SSNT_YR = R.SSNT_YR
+                 LEFT JOIN TM T ON T.TM_ID = PT.TM_ID
+        WHERE R.PLR_ID = #{plrId}
+        ORDER BY R.SSNT_YR DESC
+    </select>
+
+    <!-- ===== 투수 시즌 성적 ===== -->
+    <select id="findPitcherSeasonStats" resultType="com.kbo.gm.domain.player.dao.PlrPtchSsntRecDao">
+        SELECT R.PLR_ID, R.SSNT_YR,
+               T.TM_ID, T.TM_KR_NM, T.TM_SHRT_ENG_NM,
+               R.G, R.GS, R.IP_OUT,
+               R.H, R.HR, R.R, R.ER, R.BB, R.SO,
+               R.W, R.L, R.SV, R.HLD,
+               R.ERA, R.WHIP
+        FROM PLR_PTCH_SSNT_REC R
+                 LEFT JOIN PLR_PTCH_TM_SSNT_REC PT ON PT.PLR_ID = R.PLR_ID AND PT.SSNT_YR = R.SSNT_YR
+                 LEFT JOIN TM T ON T.TM_ID = PT.TM_ID
+        WHERE R.PLR_ID = #{plrId}
+        ORDER BY R.SSNT_YR DESC
+    </select>
+
+    <!-- ===== 타자 월별 성적 ===== -->
+    <select id="findBatterMonthlyStats" resultType="com.kbo.gm.domain.player.dao.PlrBatrMonRecDao">
+        SELECT M.PLR_ID, M.SSNT_YR, M.MON,
+               T.TM_ID, T.TM_KR_NM,
+               M.G, M.PA, M.AB, M.H, M.HR, M.RBI, M.BB, M.SO, M.SB,
+               M.BA, M.OBP, M.SLG, M.OPS
+        FROM PLR_BATR_MON_REC M
+                 LEFT JOIN TM T ON T.TM_ID = M.TM_ID
+        WHERE M.PLR_ID = #{plrId}
+          AND M.SSNT_YR = #{ssntYr}
+        ORDER BY M.MON
+    </select>
+
+    <!-- ===== 투수 월별 성적 ===== -->
+    <select id="findPitcherMonthlyStats" resultType="com.kbo.gm.domain.player.dao.PlrPtchMonRecDao">
+        SELECT M.PLR_ID, M.SSNT_YR, M.MON,
+               T.TM_ID, T.TM_KR_NM,
+               M.G, M.GS, M.IP_OUT,
+               M.H, M.HR, M.R, M.ER, M.BB, M.SO,
+               M.W, M.L, M.SV, M.HLD,
+               M.ERA, M.WHIP
+        FROM PLR_PTCH_MON_REC M
+                 LEFT JOIN TM T ON T.TM_ID = M.TM_ID
+        WHERE M.PLR_ID = #{plrId}
+          AND M.SSNT_YR = #{ssntYr}
+        ORDER BY M.MON
+    </select>
+
+    <!-- ===== 성장 이력 (월별 능력치 스냅샷) ===== -->
+    <select id="findAbilityMonthlyHistory" resultType="com.kbo.gm.domain.player.dao.PlrAbltMonDao">
+        SELECT A.PLR_ID, A.SSNT_YR, A.MON, A.ABLT_CD,
+               C.CD_NM AS ABLT_NM,
+               A.ABLT_VAL,
+               CASE
+                   WHEN A.ABLT_VAL >= 76 THEN 'S+'
+                   WHEN A.ABLT_VAL >= 71 THEN 'S'
+                   WHEN A.ABLT_VAL >= 66 THEN 'S-'
+                   WHEN A.ABLT_VAL >= 61 THEN 'A+'
+                   WHEN A.ABLT_VAL >= 56 THEN 'A'
+                   WHEN A.ABLT_VAL >= 51 THEN 'A-'
+                   WHEN A.ABLT_VAL >= 46 THEN 'B+'
+                   WHEN A.ABLT_VAL >= 41 THEN 'B'
+                   WHEN A.ABLT_VAL >= 36 THEN 'B-'
+                   WHEN A.ABLT_VAL >= 31 THEN 'C+'
+                   WHEN A.ABLT_VAL >= 26 THEN 'C'
+                   WHEN A.ABLT_VAL >= 23 THEN 'C-'
+                   ELSE 'D'
+               END AS ABLT_GRADE
+        FROM PLR_ABLT_MON A
+                 LEFT JOIN CMN_CD C ON C.CD_ID = 'ABLT' AND C.CD_VAL = A.ABLT_CD
+        WHERE A.PLR_ID = #{plrId}
+          AND A.SSNT_YR = #{ssntYr}
+        ORDER BY A.MON, A.ABLT_CD
+    </select>
+
+    <select id="findHideAbilities" resultType="com.kbo.gm.domain.player.dao.PlrHideAbltDao">
+        SELECT H.PLR_ID,
+               H.HIDE_ABLT_CD,
+               C.CD_NM      AS HIDE_ABLT_NM,
+               H.HIDE_ABLT_VAL
+        FROM PLR_HIDE_ABLT H
+                 LEFT JOIN CMN_CD C ON C.CD_ID = 'HIDE_ABLT' AND C.CD_VAL = H.HIDE_ABLT_CD
+        WHERE H.PLR_ID = #{plrId}
+        ORDER BY H.HIDE_ABLT_CD
+    </select>
+
+    <select id="findFatgCond" resultType="com.kbo.gm.domain.player.dao.PlrFatgCondDao">
+        SELECT PLR_ID, SSNT_YR, FATG, COND
+        FROM PLR_FATG_COND
+        WHERE PLR_ID  = #{plrId}
+          AND SSNT_YR = #{ssntYr}
+    </select>
+
+    <insert id="upsertFatgCond">
+        INSERT INTO PLR_FATG_COND (PLR_ID, SSNT_YR, FATG, COND)
+        VALUES (#{plrId}, #{ssntYr}, #{fatg}, #{cond})
+        ON DUPLICATE KEY UPDATE
+            FATG   = #{fatg},
+            COND   = #{cond},
+            UPD_DT = CURRENT_TIMESTAMP
+    </insert>
+
+    <!-- ===== 부상 이력 ===== -->
+    <select id="findInjuryHistory" resultType="com.kbo.gm.domain.player.dao.PlrInjryHistDao">
+        SELECT EVNT_ID, SSNT_YR, EVNT_DT, EVNT_TYPE_CD, EVNT_TTLT, EVNT_CNTS
+        FROM SSNT_EVNT
+        WHERE PLR_ID = #{plrId}
+          AND EVNT_TYPE_CD IN ('INJ', 'RCV')
+        ORDER BY EVNT_DT DESC
+    </select>
+
+    <!-- ===== 선수 정보 수정 ===== -->
+    <update id="updateAblt">
+        UPDATE PLR_ABLT
+           SET ABLT_VAL = #{abltVal}
+         WHERE PLR_ID  = #{plrId}
+           AND ABLT_CD = #{abltCd}
+    </update>
+
+    <update id="updatePosnPrfcAblt">
+        UPDATE PLR_POSN
+           SET POSN_PRFC_ABLT = #{posnPrfcAblt}
+         WHERE PLR_ID  = #{plrId}
+           AND POSN_CD = #{posnCd}
+    </update>
+
+    <update id="updatePotAblt">
+        UPDATE PLR
+           SET PLR_POT_ABLT = #{potAblt}
+         WHERE PLR_ID = #{plrId}
+    </update>
+
+    <update id="recalcOvrlAblt">
+        UPDATE PLR
+           SET PLR_OVRL_ABLT = (
+               SELECT ROUND(AVG(A.ABLT_VAL))
+                 FROM PLR_ABLT A
+                WHERE A.PLR_ID = #{plrId}
+           )
+         WHERE PLR_ID = #{plrId}
+    </update>
+
+</mapper>

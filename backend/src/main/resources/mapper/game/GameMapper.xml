@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kbo.gm.domain.game.mapper.GameMapper">
+
+    <select id="findAll" resultType="com.kbo.gm.domain.game.dao.GameDao">
+        SELECT G.GAME_ID, G.SSNT_YR, G.GAME_DT,
+               G.HOME_TM_ID, HT.TM_KR_NM AS HOME_TM_KR_NM,
+               G.AWAY_TM_ID, AT.TM_KR_NM AS AWAY_TM_KR_NM,
+               G.STDM_ID, S.STDM_KR_NM,
+               G.HOME_SCORE, G.AWAY_SCORE,
+               G.GAME_STTS_CD, GC.CD_NM AS GAME_STTS_NM,
+               G.GAME_TYPE_CD, TC.CD_NM AS GAME_TYPE_NM
+        FROM GAME G
+                 JOIN TM HT ON HT.TM_ID = G.HOME_TM_ID
+                 JOIN TM AT ON AT.TM_ID = G.AWAY_TM_ID
+                 LEFT JOIN STDM S ON S.STDM_ID = G.STDM_ID
+                 LEFT JOIN CMN_CD GC ON GC.CD_ID = 'GAME_STTS' AND GC.CD_VAL = G.GAME_STTS_CD
+                 LEFT JOIN CMN_CD TC ON TC.CD_ID = 'GAME_TYPE' AND TC.CD_VAL = G.GAME_TYPE_CD
+        <where>
+            <if test="ssntYr != null">AND G.SSNT_YR = #{ssntYr}</if>
+            <if test="mon != null">AND MONTH(G.GAME_DT) = #{mon}</if>
+            <if test="gameDt != null">AND G.GAME_DT = #{gameDt}</if>
+            <if test="tmId != null">AND (G.HOME_TM_ID = #{tmId} OR G.AWAY_TM_ID = #{tmId})</if>
+        </where>
+        ORDER BY G.GAME_DT, G.GAME_ID
+    </select>
+
+    <select id="findById" resultType="com.kbo.gm.domain.game.dao.GameDao">
+        SELECT G.GAME_ID, G.SSNT_YR, G.GAME_DT,
+               G.HOME_TM_ID, HT.TM_KR_NM AS HOME_TM_KR_NM,
+               G.AWAY_TM_ID, AT.TM_KR_NM AS AWAY_TM_KR_NM,
+               G.STDM_ID, S.STDM_KR_NM,
+               G.HOME_SCORE, G.AWAY_SCORE,
+               G.GAME_STTS_CD, GC.CD_NM AS GAME_STTS_NM,
+               G.GAME_TYPE_CD, TC.CD_NM AS GAME_TYPE_NM
+        FROM GAME G
+                 JOIN TM HT ON HT.TM_ID = G.HOME_TM_ID
+                 JOIN TM AT ON AT.TM_ID = G.AWAY_TM_ID
+                 LEFT JOIN STDM S ON S.STDM_ID = G.STDM_ID
+                 LEFT JOIN CMN_CD GC ON GC.CD_ID = 'GAME_STTS' AND GC.CD_VAL = G.GAME_STTS_CD
+                 LEFT JOIN CMN_CD TC ON TC.CD_ID = 'GAME_TYPE' AND TC.CD_VAL = G.GAME_TYPE_CD
+        WHERE G.GAME_ID = #{gameId}
+    </select>
+
+</mapper>

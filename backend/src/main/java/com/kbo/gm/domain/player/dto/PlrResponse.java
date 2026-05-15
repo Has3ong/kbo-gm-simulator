@@ -1,0 +1,53 @@
+package com.kbo.gm.domain.player.dto;
+
+import com.kbo.gm.domain.player.dao.PlrDao;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+@Getter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class PlrResponse {
+    private Long plrId;              // 선수 ID
+    private String plrNm;            // 선수 한국어 이름
+    private String plrEngNm;         // 선수 영어 이름
+    private Integer plrHgt;          // 키 (cm)
+    private Integer plrWgt;          // 몸무게 (kg)
+    private String plrBatPtchHandCd; // 타격·투구 방향 코드 (RR: 우타우투, LL: 좌타좌투 등)
+    private Long plrAnslSal;         // 연봉 (원)
+    private String plrNtnlt;         // 국적
+    private String plrFrgnYn;        // 외국인 선수 여부 (Y/N)
+    private String plrSttsCd;        // 선수 상태 코드 (AT: 활동, INJ: 부상, RET: 은퇴, FA: FA)
+    private Integer plrOvrlAblt;     // 종합 능력치 (20~80 스케일)
+    private Integer plrPotAblt;      // 잠재 능력치 — 선수가 도달 가능한 최대 종합 능력치, 불변
+    private Long tmId;               // 소속 팀 ID
+    private String tmKrNm;           // 소속 팀 한국어 이름
+    private String tmShrtKrNm;       // 소속 팀 한국어 약칭
+    private String reprPosnCd;       // 대표 포지션 코드
+    private String reprPosnNm;       // 대표 포지션 한국어 이름
+
+    public static PlrResponse from(PlrDao dao) {
+        return PlrResponse.builder()
+                .plrId(dao.getPlrId())
+                .plrNm(dao.getPlrNm())
+                .plrEngNm(dao.getPlrEngNm())
+                .plrHgt(dao.getPlrHgt())
+                .plrWgt(dao.getPlrWgt())
+                .plrBatPtchHandCd(dao.getPlrBatPtchHandCd())
+                .plrAnslSal(dao.getPlrAnslSal())
+                .plrNtnlt(dao.getPlrNtnlt())
+                .plrFrgnYn(dao.getPlrFrgnYn())
+                .plrSttsCd(dao.getPlrSttsCd())
+                .plrOvrlAblt(dao.getPlrOvrlAblt())
+                .plrPotAblt(dao.getPlrPotAblt())
+                .tmId(dao.getTmId())
+                .tmKrNm(dao.getTmKrNm())
+                .tmShrtKrNm(dao.getTmShrtKrNm())
+                .reprPosnCd(dao.getReprPosnCd())
+                .reprPosnNm(dao.getReprPosnNm())
+                .build();
+    }
+}

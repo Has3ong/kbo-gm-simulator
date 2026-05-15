@@ -1,0 +1,1055 @@
+-- ============================================================
+-- KBO 단장 시뮬레이터 — 전체 스키마
+-- 모든 CREATE TABLE / VIEW 포함 (ALTER TABLE 통합 적용)
+-- 실행 순서: 01_schema → 02_cmn_cd → 03_teams_stadiums → ...
+-- ============================================================
+
+ALTER DATABASE KBO DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- ============================================================
+-- CMN_CD: 공통코드
+-- ============================================================
+CREATE TABLE CMN_CD (
+    CD_ID     VARCHAR(20)  NOT NULL COMMENT '코드ID      | 코드 그룹 식별자',
+    CD_VAL    VARCHAR(20)  NOT NULL COMMENT '코드값      | 코드 그룹 내 개별 코드 값',
+    CD_NM     VARCHAR(100) NOT NULL COMMENT '코드명      | 한글 명칭',
+    CD_ENG_NM VARCHAR(100)          COMMENT '코드 영문명',
+    CD_DESC   VARCHAR(500)          COMMENT '코드설명',
+    PRIMARY KEY (CD_ID, CD_VAL)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='공통코드 | 게임 내 포지션, 능력치 등 코드 기준 정보';
+
+
+-- ============================================================
+-- STDM: 경기장
+-- ============================================================
+CREATE TABLE STDM (
+    STDM_ID          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '경기장ID',
+    STDM_KR_NM       VARCHAR(100) NOT NULL               COMMENT '경기장 한글명',
+    STDM_ENG_NM      VARCHAR(150)                        COMMENT '경기장 영문명',
+    STDM_SHRT_KR_NM  VARCHAR(30)                         COMMENT '경기장 짧은 한글명',
+    STDM_SHRT_ENG_NM VARCHAR(30)                         COMMENT '경기장 짧은 영문명',
+    STDM_LOC         VARCHAR(200)                        COMMENT '경기장 소재지',
+    STDM_ESTBLSH_DT  DATE                                COMMENT '경기장 개장일자',
+    STDM_SEAT_CNT    INT                                 COMMENT '수용 좌석수',
+    LF_DIST          SMALLINT UNSIGNED                   COMMENT '좌펜스 거리 (m)',
+    LCF_DIST         SMALLINT UNSIGNED                   COMMENT '좌중간 펜스 거리 (m)',
+    CF_DIST          SMALLINT UNSIGNED                   COMMENT '중앙 펜스 거리 (m)',
+    RCF_DIST         SMALLINT UNSIGNED                   COMMENT '우중간 펜스 거리 (m)',
+    RF_DIST          SMALLINT UNSIGNED                   COMMENT '우펜스 거리 (m)',
+    FENCE_HGT        DECIMAL(4,1)                        COMMENT '펜스 높이 (m)',
+    TURF_TYPE_CD     CHAR(2)                             COMMENT '잔디종류코드 | CMN_CD(TURF_TYPE)',
+    PRIMARY KEY (STDM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='경기장';
+
+CREATE TABLE STDM_HIST (
+    STDM_ID          BIGINT       NOT NULL COMMENT '경기장ID | STDM FK',
+    HIST_SEQ         INT          NOT NULL COMMENT '이력순번',
+    HIST_DT          DATE         NOT NULL COMMENT '이력일자',
+    STDM_KR_NM       VARCHAR(100) NOT NULL COMMENT '경기장 한글명',
+    STDM_ENG_NM      VARCHAR(150)          COMMENT '경기장 영문명',
+    STDM_SHRT_KR_NM  VARCHAR(30)           COMMENT '경기장 짧은 한글명',
+    STDM_SHRT_ENG_NM VARCHAR(30)           COMMENT '경기장 짧은 영문명',
+    STDM_LOC         VARCHAR(200)          COMMENT '경기장 소재지',
+    STDM_SEAT_CNT    INT                   COMMENT '수용 좌석수',
+    LF_DIST          SMALLINT UNSIGNED     COMMENT '좌펜스 거리 (m)',
+    LCF_DIST         SMALLINT UNSIGNED     COMMENT '좌중간 펜스 거리 (m)',
+    CF_DIST          SMALLINT UNSIGNED     COMMENT '중앙 펜스 거리 (m)',
+    RCF_DIST         SMALLINT UNSIGNED     COMMENT '우중간 펜스 거리 (m)',
+    RF_DIST          SMALLINT UNSIGNED     COMMENT '우펜스 거리 (m)',
+    FENCE_HGT        DECIMAL(4,1)          COMMENT '펜스 높이 (m)',
+    TURF_TYPE_CD     CHAR(2)               COMMENT '잔디종류코드',
+    PRIMARY KEY (STDM_ID, HIST_SEQ),
+    CONSTRAINT FK_STDM_HIST_STDM FOREIGN KEY (STDM_ID) REFERENCES STDM (STDM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='경기장 이력';
+
+
+-- ============================================================
+-- TM: 팀
+-- ============================================================
+CREATE TABLE TM (
+    TM_ID          BIGINT      NOT NULL AUTO_INCREMENT COMMENT '팀ID',
+    TM_KR_NM       VARCHAR(50) NOT NULL               COMMENT '팀 한글명',
+    TM_ENG_NM      VARCHAR(100)                       COMMENT '팀 영문명',
+    TM_SHRT_KR_NM  VARCHAR(20)                        COMMENT '팀 짧은 한글명',
+    TM_SHRT_ENG_NM VARCHAR(20)                        COMMENT '팀 짧은 영문명',
+    TM_ESTBLSH_DT  DATE                               COMMENT '팀 설립일자',
+    CITY_CD        VARCHAR(10)                        COMMENT '연고도시코드 | CMN_CD(CITY)',
+    STDM_ID        BIGINT                             COMMENT '경기장ID | STDM FK',
+    PRIMARY KEY (TM_ID),
+    CONSTRAINT FK_TM_STDM FOREIGN KEY (STDM_ID) REFERENCES STDM (STDM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='팀 | KBO 소속 구단';
+
+CREATE TABLE TM_HIST (
+    TM_ID          BIGINT      NOT NULL COMMENT '팀ID | TM FK',
+    HIST_SEQ       INT         NOT NULL COMMENT '이력순번',
+    HIST_DT        DATE        NOT NULL COMMENT '이력일자',
+    TM_KR_NM       VARCHAR(50) NOT NULL COMMENT '팀 한글명',
+    TM_ENG_NM      VARCHAR(100)         COMMENT '팀 영문명',
+    TM_SHRT_KR_NM  VARCHAR(20)          COMMENT '팀 짧은 한글명',
+    TM_SHRT_ENG_NM VARCHAR(20)          COMMENT '팀 짧은 영문명',
+    CITY_CD        VARCHAR(10)          COMMENT '연고도시코드',
+    STDM_ID        BIGINT               COMMENT '경기장ID',
+    PRIMARY KEY (TM_ID, HIST_SEQ),
+    CONSTRAINT FK_TM_HIST_TM FOREIGN KEY (TM_ID) REFERENCES TM (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='팀 이력';
+
+CREATE TABLE TM_STDM (
+    TM_ID       BIGINT NOT NULL COMMENT '팀ID | TM FK',
+    STDM_ID     BIGINT NOT NULL COMMENT '경기장ID | STDM FK',
+    STDM_USE_DT DATE   NOT NULL COMMENT '경기장 사용 시작일자',
+    STDM_END_DT DATE             COMMENT '경기장 사용 종료일자',
+    PRIMARY KEY (TM_ID, STDM_ID),
+    CONSTRAINT FK_TM_STDM_TM   FOREIGN KEY (TM_ID)   REFERENCES TM   (TM_ID),
+    CONSTRAINT FK_TM_STDM_STDM FOREIGN KEY (STDM_ID) REFERENCES STDM (STDM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='팀-경기장 관계';
+
+
+-- ============================================================
+-- PLR: 선수
+-- ============================================================
+CREATE TABLE PLR (
+    PLR_ID               BIGINT       NOT NULL AUTO_INCREMENT COMMENT '선수ID',
+    PLR_NM               VARCHAR(50)  NOT NULL               COMMENT '선수명',
+    PLR_ENG_NM           VARCHAR(100)                        COMMENT '선수 영문명',
+    PLR_HGT              SMALLINT UNSIGNED                   COMMENT '키 (cm)',
+    PLR_WGT              SMALLINT UNSIGNED                   COMMENT '몸무게 (kg)',
+    PLR_BRTH_LOC         VARCHAR(100)                        COMMENT '출생지',
+    PLR_HS_NM            VARCHAR(100)                        COMMENT '출신 고등학교',
+    PLR_DRFT_RND         TINYINT UNSIGNED                    COMMENT '드래프트 라운드',
+    PLR_DRFT_NO          SMALLINT UNSIGNED                   COMMENT '드래프트 지명 순번',
+    PLR_BAT_PTCH_HAND_CD CHAR(2)                             COMMENT '투타코드 | CMN_CD(BAT_PTCH_HAND)',
+    PLR_ANSL_SAL         BIGINT                              COMMENT '연봉 (만원)',
+    PLR_NTNLT            VARCHAR(50)                         COMMENT '국적',
+    PLR_FRGN_YN          CHAR(1)                             COMMENT '외국인 선수 여부',
+    PLR_STTS_CD          VARCHAR(5)                          COMMENT '선수 상태코드 | CMN_CD(PLR_STTS)',
+    PLR_OVRL_ABLT        TINYINT                             COMMENT '전체 능력치 (20~80)',
+    PLR_POT_ABLT         TINYINT                             COMMENT '잠재 능력치 (20~80)',
+    TM_ID                BIGINT                              COMMENT '팀ID | TM FK',
+    PRIMARY KEY (PLR_ID),
+    CONSTRAINT FK_PLR_TM FOREIGN KEY (TM_ID) REFERENCES TM (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='선수 기본 정보';
+
+CREATE TABLE PLR_POSN (
+    PLR_ID         BIGINT  NOT NULL COMMENT '선수ID | PLR FK',
+    POSN_CD        CHAR(2) NOT NULL COMMENT '포지션코드 | CMN_CD(POSN)',
+    POSN_PRFC_ABLT TINYINT NOT NULL DEFAULT 50 COMMENT '포지션 숙련도 (20~80)',
+    PRIMARY KEY (PLR_ID, POSN_CD),
+    CONSTRAINT FK_PLR_POSN_PLR FOREIGN KEY (PLR_ID) REFERENCES PLR (PLR_ID),
+    CONSTRAINT CHK_POSN_PRFC   CHECK (POSN_PRFC_ABLT BETWEEN 20 AND 80)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='선수-포지션 관계';
+
+CREATE TABLE PLR_ABLT (
+    PLR_ID   BIGINT     NOT NULL COMMENT '선수ID | PLR FK',
+    ABLT_CD  VARCHAR(5) NOT NULL COMMENT '능력치코드 | CMN_CD(ABLT)',
+    ABLT_VAL TINYINT    NOT NULL DEFAULT 50 COMMENT '능력치 (20~80)',
+    PRIMARY KEY (PLR_ID, ABLT_CD),
+    CONSTRAINT FK_PLR_ABLT_PLR FOREIGN KEY (PLR_ID) REFERENCES PLR (PLR_ID),
+    CONSTRAINT CHK_ABLT_VAL    CHECK (ABLT_VAL BETWEEN 20 AND 80)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='선수 능력치 (20~80)';
+
+CREATE VIEW VW_PLR_ABLT AS
+SELECT
+    PA.PLR_ID,
+    PA.ABLT_CD,
+    CMN.CD_NM     AS ABLT_NM,
+    CMN.CD_ENG_NM AS ABLT_ENG_NM,
+    PA.ABLT_VAL,
+    CASE
+        WHEN PA.ABLT_VAL >= 76 THEN 'S+'
+        WHEN PA.ABLT_VAL >= 71 THEN 'S'
+        WHEN PA.ABLT_VAL >= 66 THEN 'S-'
+        WHEN PA.ABLT_VAL >= 61 THEN 'A+'
+        WHEN PA.ABLT_VAL >= 56 THEN 'A'
+        WHEN PA.ABLT_VAL >= 51 THEN 'A-'
+        WHEN PA.ABLT_VAL >= 46 THEN 'B+'
+        WHEN PA.ABLT_VAL >= 41 THEN 'B'
+        WHEN PA.ABLT_VAL >= 36 THEN 'B-'
+        WHEN PA.ABLT_VAL >= 31 THEN 'C+'
+        WHEN PA.ABLT_VAL >= 26 THEN 'C'
+        WHEN PA.ABLT_VAL >= 23 THEN 'C-'
+        ELSE 'D'
+    END AS ABLT_GRADE
+FROM PLR_ABLT PA
+LEFT JOIN CMN_CD CMN ON CMN.CD_ID = 'ABLT' AND CMN.CD_VAL = PA.ABLT_CD;
+
+
+-- ============================================================
+-- PLR_TM: 선수-팀 소속
+-- ============================================================
+CREATE TABLE PLR_TM (
+    PLR_ID     BIGINT NOT NULL COMMENT '선수ID | PLR FK',
+    TM_ID      BIGINT NOT NULL COMMENT '팀ID | TM FK',
+    TM_BGNG_DT DATE   NOT NULL COMMENT '소속 시작일자',
+    TM_END_DT  DATE            COMMENT '소속 종료일자',
+    PRIMARY KEY (PLR_ID, TM_ID),
+    CONSTRAINT FK_PLR_TM_PLR FOREIGN KEY (PLR_ID) REFERENCES PLR (PLR_ID),
+    CONSTRAINT FK_PLR_TM_TM  FOREIGN KEY (TM_ID)  REFERENCES TM  (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='선수-팀 소속';
+
+CREATE TABLE PLR_TM_CNTRCT (
+    PLR_ID            BIGINT  NOT NULL COMMENT '선수ID | PLR FK',
+    TM_ID             BIGINT  NOT NULL COMMENT '팀ID | TM FK',
+    FA_CNTRCT_BGNG_DT DATE             COMMENT 'FA 계약 시작일자',
+    FA_AMT            BIGINT           COMMENT 'FA 금액 (만원)',
+    FA_CNTRCT_END_DT  DATE             COMMENT 'FA 계약 종료일자',
+    REPR_POSN_CD      CHAR(2)          COMMENT '대표 포지션코드',
+    CNTRCT_TYPE_CD    CHAR(2)          COMMENT '계약 종류코드',
+    PRIMARY KEY (PLR_ID, TM_ID),
+    CONSTRAINT FK_PLR_TM_CNTRCT_PLR FOREIGN KEY (PLR_ID) REFERENCES PLR (PLR_ID),
+    CONSTRAINT FK_PLR_TM_CNTRCT_TM  FOREIGN KEY (TM_ID)  REFERENCES TM  (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='선수-팀 계약';
+
+CREATE TABLE PLR_TM_CNTRCT_HIST (
+    PLR_ID            BIGINT NOT NULL COMMENT '선수ID | PLR FK',
+    TM_ID             BIGINT NOT NULL COMMENT '팀ID | TM FK',
+    HIST_SEQ          INT    NOT NULL COMMENT '이력순번',
+    HIST_DT           DATE   NOT NULL COMMENT '이력일자',
+    FA_CNTRCT_BGNG_DT DATE            COMMENT 'FA 계약 시작일자',
+    FA_AMT            BIGINT          COMMENT 'FA 금액 (만원)',
+    FA_CNTRCT_END_DT  DATE            COMMENT 'FA 계약 종료일자',
+    REPR_POSN_CD      CHAR(2)         COMMENT '대표 포지션코드',
+    CNTRCT_TYPE_CD    CHAR(2)         COMMENT '계약 종류코드',
+    PRIMARY KEY (PLR_ID, TM_ID, HIST_SEQ),
+    CONSTRAINT FK_PLR_TM_CNTRCT_HIST_PLR FOREIGN KEY (PLR_ID) REFERENCES PLR (PLR_ID),
+    CONSTRAINT FK_PLR_TM_CNTRCT_HIST_TM  FOREIGN KEY (TM_ID)  REFERENCES TM  (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='선수-팀 계약 이력';
+
+
+-- ============================================================
+-- GAME: 경기 (GAME_TYPE_CD 포함)
+-- ============================================================
+CREATE TABLE GAME (
+    GAME_ID      BIGINT           NOT NULL AUTO_INCREMENT COMMENT '경기ID',
+    SSNT_YR      YEAR             NOT NULL               COMMENT '시즌 연도',
+    GAME_DT      DATE             NOT NULL               COMMENT '경기 일자',
+    HOME_TM_ID   BIGINT           NOT NULL               COMMENT '홈팀ID | TM FK',
+    AWAY_TM_ID   BIGINT           NOT NULL               COMMENT '원정팀ID | TM FK',
+    STDM_ID      BIGINT                                  COMMENT '경기장ID | STDM FK',
+    HOME_SCORE   TINYINT UNSIGNED                        COMMENT '홈팀 득점',
+    AWAY_SCORE   TINYINT UNSIGNED                        COMMENT '원정팀 득점',
+    GAME_STTS_CD CHAR(2)          NOT NULL DEFAULT '01'  COMMENT '경기상태코드 | CMN_CD(GAME_STTS)',
+    GAME_TYPE_CD CHAR(3)                                 COMMENT '경기종류코드 (REG/WC/SP/PO/KS)',
+    PRIMARY KEY (GAME_ID),
+    CONSTRAINT FK_GAME_HOME_TM FOREIGN KEY (HOME_TM_ID) REFERENCES TM   (TM_ID),
+    CONSTRAINT FK_GAME_AWAY_TM FOREIGN KEY (AWAY_TM_ID) REFERENCES TM   (TM_ID),
+    CONSTRAINT FK_GAME_STDM    FOREIGN KEY (STDM_ID)    REFERENCES STDM (STDM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='경기';
+
+CREATE TABLE PLR_BATR_GAME_REC (
+    PLR_ID  BIGINT           NOT NULL COMMENT '선수ID | PLR FK',
+    GAME_ID BIGINT           NOT NULL COMMENT '경기ID | GAME FK',
+    TM_ID   BIGINT           NOT NULL COMMENT '소속팀ID | TM FK',
+    BAT_ORD TINYINT UNSIGNED          COMMENT '타순 (1~9)',
+    POSN_CD CHAR(2)                   COMMENT '출장 포지션코드',
+    PA      SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '타석수',
+    AB      SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '타수',
+    H       SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '안타',
+    DOBL    SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '2루타',
+    TRPL    SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '3루타',
+    HR      SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '홈런',
+    RBI     SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '타점',
+    R       SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '득점',
+    BB      SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '볼넷',
+    IBB     SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '고의사구',
+    SO      SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '삼진',
+    SB      SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '도루',
+    CS      SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '도루 실패',
+    HBP     SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '사구',
+    SAC     SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '희생번트',
+    SF      SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '희생플라이',
+    GIDP    SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '병살타',
+    PRIMARY KEY (PLR_ID, GAME_ID),
+    CONSTRAINT FK_PLR_BATR_GAME_REC_PLR  FOREIGN KEY (PLR_ID)  REFERENCES PLR  (PLR_ID),
+    CONSTRAINT FK_PLR_BATR_GAME_REC_GAME FOREIGN KEY (GAME_ID) REFERENCES GAME (GAME_ID),
+    CONSTRAINT FK_PLR_BATR_GAME_REC_TM   FOREIGN KEY (TM_ID)   REFERENCES TM   (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='타자 경기 기록';
+
+CREATE TABLE PLR_BATR_MON_REC (
+    PLR_ID  BIGINT           NOT NULL COMMENT '선수ID',
+    SSNT_YR YEAR             NOT NULL COMMENT '시즌 연도',
+    MON     TINYINT UNSIGNED NOT NULL COMMENT '월 (3~11)',
+    TM_ID   BIGINT           NOT NULL COMMENT '소속팀ID',
+    G       SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '경기수',
+    PA      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    AB      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    H       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    DOBL    SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    TRPL    SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    HR      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    RBI     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    R       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    BB      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    IBB     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    SO      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    SB      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    CS      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    HBP     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    SAC     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    SF      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    GIDP    SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    BA      DECIMAL(5,3),
+    OBP     DECIMAL(5,3),
+    SLG     DECIMAL(5,3),
+    OPS     DECIMAL(5,3),
+    PRIMARY KEY (PLR_ID, SSNT_YR, MON, TM_ID),
+    CONSTRAINT FK_PLR_BATR_MON_REC_PLR FOREIGN KEY (PLR_ID) REFERENCES PLR (PLR_ID),
+    CONSTRAINT FK_PLR_BATR_MON_REC_TM  FOREIGN KEY (TM_ID)  REFERENCES TM  (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='타자 월 집계 기록';
+
+CREATE TABLE PLR_BATR_SSNT_REC (
+    PLR_ID  BIGINT NOT NULL COMMENT '선수ID',
+    SSNT_YR YEAR   NOT NULL COMMENT '시즌 연도',
+    G       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    PA      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    AB      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    H       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    DOBL    SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    TRPL    SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    HR      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    RBI     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    R       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    BB      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    IBB     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    SO      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    SB      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    CS      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    HBP     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    SAC     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    SF      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    GIDP    SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    BA      DECIMAL(5,3),
+    OBP     DECIMAL(5,3),
+    SLG     DECIMAL(5,3),
+    OPS     DECIMAL(5,3),
+    PRIMARY KEY (PLR_ID, SSNT_YR),
+    CONSTRAINT FK_PLR_BATR_SSNT_REC_PLR FOREIGN KEY (PLR_ID) REFERENCES PLR (PLR_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='타자 시즌 집계 기록';
+
+CREATE TABLE PLR_BATR_TM_SSNT_REC (
+    PLR_ID  BIGINT NOT NULL,
+    SSNT_YR YEAR   NOT NULL,
+    TM_ID   BIGINT NOT NULL,
+    G       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    PA      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    AB      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    H       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    DOBL    SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    TRPL    SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    HR      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    RBI     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    R       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    BB      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    IBB     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    SO      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    SB      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    CS      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    HBP     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    SAC     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    SF      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    GIDP    SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    BA      DECIMAL(5,3),
+    OBP     DECIMAL(5,3),
+    SLG     DECIMAL(5,3),
+    OPS     DECIMAL(5,3),
+    PRIMARY KEY (PLR_ID, SSNT_YR, TM_ID),
+    CONSTRAINT FK_PLR_BATR_TM_SSNT_REC_PLR FOREIGN KEY (PLR_ID) REFERENCES PLR (PLR_ID),
+    CONSTRAINT FK_PLR_BATR_TM_SSNT_REC_TM  FOREIGN KEY (TM_ID)  REFERENCES TM  (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='타자 팀별 시즌 집계';
+
+CREATE TABLE PLR_PTCH_GAME_REC (
+    PLR_ID       BIGINT           NOT NULL COMMENT '선수ID | PLR FK',
+    GAME_ID      BIGINT           NOT NULL COMMENT '경기ID | GAME FK',
+    TM_ID        BIGINT           NOT NULL COMMENT '소속팀ID | TM FK',
+    PTCH_ROLE_CD CHAR(2)                   COMMENT '투수 역할코드',
+    IP_OUT       SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '투구 이닝 (아웃카운트)',
+    BF           SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '상대 타자수',
+    H            SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    DOBL         SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    TRPL         SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    HR           SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    R            SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    ER           SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    BB           SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    IBB          SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    SO           SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    HBP          SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    W            TINYINT(1) NOT NULL DEFAULT 0 COMMENT '승',
+    L            TINYINT(1) NOT NULL DEFAULT 0 COMMENT '패',
+    SV           TINYINT(1) NOT NULL DEFAULT 0 COMMENT '세이브',
+    HLD          TINYINT(1) NOT NULL DEFAULT 0 COMMENT '홀드',
+    PITCHES      SMALLINT UNSIGNED,
+    STRIKES      SMALLINT UNSIGNED,
+    PRIMARY KEY (PLR_ID, GAME_ID),
+    CONSTRAINT FK_PLR_PTCH_GAME_REC_PLR  FOREIGN KEY (PLR_ID)  REFERENCES PLR  (PLR_ID),
+    CONSTRAINT FK_PLR_PTCH_GAME_REC_GAME FOREIGN KEY (GAME_ID) REFERENCES GAME (GAME_ID),
+    CONSTRAINT FK_PLR_PTCH_GAME_REC_TM   FOREIGN KEY (TM_ID)   REFERENCES TM   (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='투수 경기 기록';
+
+CREATE TABLE PLR_PTCH_MON_REC (
+    PLR_ID  BIGINT           NOT NULL,
+    SSNT_YR YEAR             NOT NULL,
+    MON     TINYINT UNSIGNED NOT NULL,
+    TM_ID   BIGINT           NOT NULL,
+    G       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    GS      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    IP_OUT  INT      UNSIGNED NOT NULL DEFAULT 0,
+    BF      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    H       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    HR      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    R       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    ER      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    BB      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    IBB     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    SO      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    HBP     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    W       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    L       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    SV      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    HLD     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    ERA     DECIMAL(5,2),
+    WHIP    DECIMAL(5,3),
+    PRIMARY KEY (PLR_ID, SSNT_YR, MON, TM_ID),
+    CONSTRAINT FK_PLR_PTCH_MON_REC_PLR FOREIGN KEY (PLR_ID) REFERENCES PLR (PLR_ID),
+    CONSTRAINT FK_PLR_PTCH_MON_REC_TM  FOREIGN KEY (TM_ID)  REFERENCES TM  (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='투수 월 집계 기록';
+
+CREATE TABLE PLR_PTCH_SSNT_REC (
+    PLR_ID  BIGINT NOT NULL,
+    SSNT_YR YEAR   NOT NULL,
+    G       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    GS      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    IP_OUT  INT      UNSIGNED NOT NULL DEFAULT 0,
+    BF      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    H       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    HR      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    R       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    ER      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    BB      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    IBB     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    SO      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    HBP     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    W       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    L       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    SV      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    HLD     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    ERA     DECIMAL(5,2),
+    WHIP    DECIMAL(5,3),
+    PRIMARY KEY (PLR_ID, SSNT_YR),
+    CONSTRAINT FK_PLR_PTCH_SSNT_REC_PLR FOREIGN KEY (PLR_ID) REFERENCES PLR (PLR_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='투수 시즌 집계 기록';
+
+CREATE TABLE PLR_PTCH_TM_SSNT_REC (
+    PLR_ID  BIGINT NOT NULL,
+    SSNT_YR YEAR   NOT NULL,
+    TM_ID   BIGINT NOT NULL,
+    G       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    GS      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    IP_OUT  INT      UNSIGNED NOT NULL DEFAULT 0,
+    BF      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    H       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    HR      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    R       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    ER      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    BB      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    IBB     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    SO      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    HBP     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    W       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    L       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    SV      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    HLD     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    ERA     DECIMAL(5,2),
+    WHIP    DECIMAL(5,3),
+    PRIMARY KEY (PLR_ID, SSNT_YR, TM_ID),
+    CONSTRAINT FK_PLR_PTCH_TM_SSNT_REC_PLR FOREIGN KEY (PLR_ID) REFERENCES PLR (PLR_ID),
+    CONSTRAINT FK_PLR_PTCH_TM_SSNT_REC_TM  FOREIGN KEY (TM_ID)  REFERENCES TM  (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='투수 팀별 시즌 집계';
+
+
+-- ============================================================
+-- STND: 팀 순위 (V25 컬럼 통합)
+-- ============================================================
+CREATE TABLE STND (
+    TM_ID        BIGINT       NOT NULL COMMENT '팀ID | TM FK',
+    SSNT_YR      YEAR         NOT NULL COMMENT '시즌 연도',
+    W            SMALLINT     NOT NULL DEFAULT 0 COMMENT '승',
+    L            SMALLINT     NOT NULL DEFAULT 0 COMMENT '패',
+    T            SMALLINT     NOT NULL DEFAULT 0 COMMENT '무',
+    PCT          DECIMAL(5,4)          COMMENT '승률',
+    GB           DECIMAL(4,1)          COMMENT '게임차',
+    STND_RNK     TINYINT               COMMENT '최종 순위',
+    HOME_W       SMALLINT     NOT NULL DEFAULT 0 COMMENT '홈 승',
+    HOME_L       SMALLINT     NOT NULL DEFAULT 0 COMMENT '홈 패',
+    AWAY_W       SMALLINT     NOT NULL DEFAULT 0 COMMENT '원정 승',
+    AWAY_L       SMALLINT     NOT NULL DEFAULT 0 COMMENT '원정 패',
+    RS           SMALLINT     NOT NULL DEFAULT 0 COMMENT '득점',
+    RA           SMALLINT     NOT NULL DEFAULT 0 COMMENT '실점',
+    RUN_DIFF     SMALLINT     NOT NULL DEFAULT 0 COMMENT '득실차',
+    STRK_TYPE    CHAR(1)               COMMENT '연속기록 유형 (W/L/D)',
+    STRK_CNT     TINYINT      NOT NULL DEFAULT 0 COMMENT '연속 횟수',
+    L10_W        TINYINT      NOT NULL DEFAULT 0 COMMENT '최근 10경기 승',
+    L10_L        TINYINT      NOT NULL DEFAULT 0 COMMENT '최근 10경기 패',
+    L10_T        TINYINT      NOT NULL DEFAULT 0 COMMENT '최근 10경기 무',
+    TM_MORL      TINYINT               DEFAULT 50 COMMENT '팀 사기 (20~80)',
+    FAN_STSFCTN  TINYINT               DEFAULT 50 COMMENT '팬 만족도 (20~80)',
+    OWN_STSFCTN  TINYINT               DEFAULT 50 COMMENT '구단주 만족도 (20~80)',
+    PSTSSNT_STTS VARCHAR(4)            DEFAULT 'UNDC' COMMENT '포스트시즌 진출 상태',
+    PRIMARY KEY (TM_ID, SSNT_YR),
+    CONSTRAINT FK_STND_TM FOREIGN KEY (TM_ID) REFERENCES TM (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='팀 순위';
+
+
+-- ============================================================
+-- DRFT: 드래프트 (DRFT_PLR 신체 컬럼 통합)
+-- ============================================================
+CREATE TABLE DRFT (
+    DRFT_ID      BIGINT AUTO_INCREMENT NOT NULL COMMENT '드래프트ID',
+    SSNT_YR      YEAR                  NOT NULL COMMENT '시즌 연도',
+    DRFT_DT      DATE                  NOT NULL COMMENT '드래프트 날짜',
+    DRFT_STTS_CD VARCHAR(11)           NOT NULL DEFAULT 'CREATED' COMMENT '드래프트 상태코드',
+    RND_CNT      TINYINT               NOT NULL DEFAULT 11 COMMENT '라운드 수',
+    MAX_PICK_CNT SMALLINT              NOT NULL DEFAULT 110 COMMENT '최대 지명 수',
+    USER_TM_ID   BIGINT                NOT NULL COMMENT '유저 팀ID | TM FK',
+    PRIMARY KEY (DRFT_ID),
+    CONSTRAINT FK_DRFT_USER_TM FOREIGN KEY (USER_TM_ID) REFERENCES TM (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='드래프트 이벤트 마스터';
+
+CREATE TABLE DRFT_PLR (
+    DRFT_PLR_ID          BIGINT AUTO_INCREMENT NOT NULL COMMENT '드래프트선수ID',
+    DRFT_ID              BIGINT                NOT NULL COMMENT '드래프트ID | DRFT FK',
+    PLR_NM               VARCHAR(50)           NOT NULL COMMENT '선수명 (한글)',
+    PLR_ENG_NM           VARCHAR(100)                   COMMENT '선수 영문명',
+    PLR_AGE              SMALLINT                       COMMENT '나이',
+    PLR_ORGN_CD          VARCHAR(5)                     COMMENT '출신코드 | CMN_CD(PLR_ORGN)',
+    HS_NM                VARCHAR(100)                   COMMENT '출신 고등학교',
+    UNIV_NM              VARCHAR(100)                   COMMENT '출신 대학교',
+    PLR_HT               SMALLINT                       COMMENT '신장 (cm)',
+    PLR_WT               SMALLINT                       COMMENT '체중 (kg)',
+    PREV_REC             VARCHAR(100)                   COMMENT '주요 기록',
+    POSN_CD              CHAR(2)               NOT NULL COMMENT '주 포지션코드',
+    REPR_POSN_CD         CHAR(2)               NOT NULL COMMENT '대표 포지션코드',
+    PLR_BAT_PTCH_HAND_CD CHAR(2)                        COMMENT '투타코드',
+    ACT_OVRL_ABLT        TINYINT               NOT NULL COMMENT '실제 현재 능력치 (내부)',
+    ACT_POT_ABLT         TINYINT               NOT NULL COMMENT '실제 잠재 능력치 (내부)',
+    GRWTH_TEND           VARCHAR(4)            NOT NULL DEFAULT 'NRML' COMMENT '성장 성향',
+    INJ_RSK              TINYINT               NOT NULL DEFAULT 10 COMMENT '부상 위험도 (1~20)',
+    IS_PICK_YN           CHAR(1)               NOT NULL DEFAULT 'N' COMMENT '지명 여부',
+    IS_EXCL_YN           CHAR(1)               NOT NULL DEFAULT 'N' COMMENT '지명 제외 여부',
+    PLR_ID               BIGINT                         COMMENT '입단 후 선수ID | PLR FK',
+    PRIMARY KEY (DRFT_PLR_ID),
+    CONSTRAINT FK_DRFT_PLR_DRFT FOREIGN KEY (DRFT_ID) REFERENCES DRFT (DRFT_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='드래프트 선수풀';
+
+CREATE TABLE DRFT_SCUT_RPT (
+    DRFT_PLR_ID   BIGINT      NOT NULL COMMENT '드래프트선수ID | DRFT_PLR FK',
+    TM_ID         BIGINT      NOT NULL COMMENT '팀ID | TM FK',
+    EST_OVRL_ABLT TINYINT     NOT NULL COMMENT '추정 현재 능력치',
+    EST_POT_ABLT  TINYINT     NOT NULL COMMENT '추정 잠재 능력치',
+    EST_RND       TINYINT              COMMENT '예상 지명 라운드',
+    ACCRCY        TINYINT     NOT NULL DEFAULT 5 COMMENT '스카우팅 정확도 (1~10)',
+    GRADE         VARCHAR(2)           COMMENT '평가 등급',
+    CMNT          VARCHAR(500)         COMMENT '스카우트 코멘트',
+    PRIMARY KEY (DRFT_PLR_ID, TM_ID),
+    CONSTRAINT FK_DRFT_SCUT_RPT_PLR FOREIGN KEY (DRFT_PLR_ID) REFERENCES DRFT_PLR (DRFT_PLR_ID),
+    CONSTRAINT FK_DRFT_SCUT_RPT_TM  FOREIGN KEY (TM_ID)       REFERENCES TM        (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='드래프트 스카우팅 리포트';
+
+CREATE TABLE DRFT_ORD (
+    DRFT_ID      BIGINT     NOT NULL COMMENT '드래프트ID | DRFT FK',
+    PICK_NO      SMALLINT   NOT NULL COMMENT '전체 픽 번호',
+    RND          TINYINT    NOT NULL COMMENT '라운드 번호',
+    RND_PICK_NO  TINYINT    NOT NULL COMMENT '라운드 내 픽 순서',
+    TM_ID        BIGINT     NOT NULL COMMENT '지명 팀ID | TM FK',
+    PICK_STTS_CD VARCHAR(7) NOT NULL DEFAULT 'PENDING' COMMENT '픽 상태코드',
+    DRFT_PLR_ID  BIGINT              COMMENT '지명된 선수ID | DRFT_PLR FK',
+    PLR_ID       BIGINT              COMMENT '입단 후 선수ID | PLR FK',
+    PRIMARY KEY (DRFT_ID, PICK_NO),
+    CONSTRAINT FK_DRFT_ORD_DRFT FOREIGN KEY (DRFT_ID)     REFERENCES DRFT     (DRFT_ID),
+    CONSTRAINT FK_DRFT_ORD_TM   FOREIGN KEY (TM_ID)       REFERENCES TM       (TM_ID),
+    CONSTRAINT FK_DRFT_ORD_DPLR FOREIGN KEY (DRFT_PLR_ID) REFERENCES DRFT_PLR (DRFT_PLR_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='드래프트 지명 순서';
+
+CREATE TABLE DRFT_BOARD (
+    DRFT_ID     BIGINT       NOT NULL COMMENT '드래프트ID | DRFT FK',
+    DRFT_PLR_ID BIGINT       NOT NULL COMMENT '드래프트선수ID | DRFT_PLR FK',
+    TM_ID       BIGINT       NOT NULL COMMENT '팀ID | TM FK',
+    PRIO_ORD    SMALLINT              COMMENT '우선순위',
+    DO_NOT_PICK CHAR(1)      NOT NULL DEFAULT 'N' COMMENT '지명 제외 여부',
+    MEMO        VARCHAR(500)          COMMENT '메모',
+    PRIMARY KEY (DRFT_ID, DRFT_PLR_ID, TM_ID),
+    CONSTRAINT FK_DRFT_BOARD_DRFT FOREIGN KEY (DRFT_ID)     REFERENCES DRFT     (DRFT_ID),
+    CONSTRAINT FK_DRFT_BOARD_PLR  FOREIGN KEY (DRFT_PLR_ID) REFERENCES DRFT_PLR (DRFT_PLR_ID),
+    CONSTRAINT FK_DRFT_BOARD_TM   FOREIGN KEY (TM_ID)       REFERENCES TM       (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='드래프트 보드';
+
+
+-- ============================================================
+-- PLR_ENTY: 선수 엔트리
+-- ============================================================
+CREATE TABLE PLR_ENTY (
+    PLR_ID      BIGINT  NOT NULL COMMENT '선수ID | PLR FK',
+    SSNT_YR     YEAR    NOT NULL COMMENT '시즌 연도',
+    TM_ID       BIGINT  NOT NULL COMMENT '팀ID | TM FK',
+    ENTY_LVL_CD CHAR(1) NOT NULL COMMENT '엔트리 레벨 (1=1군, 2=2군)',
+    ENTY_DT     DATE    NOT NULL COMMENT '마지막 변경일',
+    PRIMARY KEY (PLR_ID, SSNT_YR),
+    CONSTRAINT FK_PLR_ENTY_PLR FOREIGN KEY (PLR_ID) REFERENCES PLR (PLR_ID),
+    CONSTRAINT FK_PLR_ENTY_TM  FOREIGN KEY (TM_ID)  REFERENCES TM  (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='선수 엔트리 현황';
+
+CREATE TABLE PLR_ENTY_HIST (
+    ENTY_HIST_ID  BIGINT AUTO_INCREMENT NOT NULL COMMENT '이력ID',
+    PLR_ID        BIGINT      NOT NULL COMMENT '선수ID | PLR FK',
+    TM_ID         BIGINT      NOT NULL COMMENT '팀ID | TM FK',
+    SSNT_YR       YEAR        NOT NULL COMMENT '시즌 연도',
+    FROM_ENTY_LVL CHAR(1)              COMMENT '변경 전 레벨',
+    TO_ENTY_LVL   CHAR(1)     NOT NULL COMMENT '변경 후 레벨',
+    CHNG_DT       DATE        NOT NULL COMMENT '변경일',
+    CHNG_RSN_CD   VARCHAR(10)          COMMENT '변경 사유코드',
+    PRIMARY KEY (ENTY_HIST_ID),
+    CONSTRAINT FK_PLR_ENTY_HIST_PLR FOREIGN KEY (PLR_ID) REFERENCES PLR (PLR_ID),
+    CONSTRAINT FK_PLR_ENTY_HIST_TM  FOREIGN KEY (TM_ID)  REFERENCES TM  (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='선수 엔트리 변경 이력';
+
+
+-- ============================================================
+-- 팀 재정/시설/마케팅
+-- ============================================================
+CREATE TABLE TM_FNC_SSNT (
+    TM_ID            BIGINT NOT NULL COMMENT '팀ID | TM FK',
+    SSNT_YR          YEAR   NOT NULL COMMENT '시즌 연도',
+    STR_CASH         BIGINT          COMMENT '시즌 시작 보유 현금 (만원)',
+    CUR_CASH         BIGINT          COMMENT '현재 보유 현금 (만원)',
+    TOT_BDGT         BIGINT          COMMENT '시즌 전체 운영 예산 (만원)',
+    PLR_SAL_BDGT     BIGINT          COMMENT '선수단 연봉 예산 (만원)',
+    COACH_BDGT       BIGINT          COMMENT '코치 예산 (만원)',
+    DVLP_BDGT        BIGINT          COMMENT '육성 예산 (만원)',
+    MKT_BDGT         BIGINT          COMMENT '마케팅 예산 (만원)',
+    FCLTY_BDGT       BIGINT          COMMENT '시설 투자 예산 (만원)',
+    CUR_PLR_SAL_COST BIGINT          COMMENT '현재 선수단 연봉 총액 (만원)',
+    CUR_SCUT_COST    BIGINT          COMMENT '스카우팅 비용 (만원)',
+    CUR_DVLP_COST    BIGINT          COMMENT '육성 비용 (만원)',
+    CUR_MKT_COST     BIGINT          COMMENT '마케팅 비용 (만원)',
+    CUR_FCLTY_COST   BIGINT          COMMENT '시설 투자 비용 (만원)',
+    TCKT_REV         BIGINT          COMMENT '입장권 수익 (만원)',
+    SSNT_TCKT_REV    BIGINT          COMMENT '시즌권 수익 (만원)',
+    MRCH_REV         BIGINT          COMMENT '굿즈 수익 (만원)',
+    SPNS_REV         BIGINT          COMMENT '스폰서 수익 (만원)',
+    BCST_REV         BIGINT          COMMENT '중계권 수익 (만원)',
+    PSTSSNT_REV      BIGINT          COMMENT '포스트시즌 수익 (만원)',
+    ETC_REV          BIGINT          COMMENT '기타 수익 (만원)',
+    PLR_SAL_COST     BIGINT          COMMENT '선수 연봉 지출 (만원)',
+    STFF_COST        BIGINT          COMMENT '코칭스태프 인건비 (만원)',
+    OPR_COST         BIGINT          COMMENT '운영비 (만원)',
+    OWN_SUPP         BIGINT          COMMENT '구단주 지원금 (만원)',
+    DEBT             BIGINT          COMMENT '부채 (만원)',
+    PRIMARY KEY (TM_ID, SSNT_YR),
+    CONSTRAINT FK_TM_FNC_SSNT_TM FOREIGN KEY (TM_ID) REFERENCES TM (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='팀 재정 시즌별';
+
+CREATE TABLE TM_FCLTY (
+    TM_ID         BIGINT     NOT NULL COMMENT '팀ID | TM FK',
+    FCLTY_TYPE_CD VARCHAR(4) NOT NULL COMMENT '시설 종류코드',
+    FCLTY_LVL     TINYINT    NOT NULL COMMENT '시설 레벨 (1~5)',
+    PRIMARY KEY (TM_ID, FCLTY_TYPE_CD),
+    CONSTRAINT FK_TM_FCLTY_TM FOREIGN KEY (TM_ID) REFERENCES TM (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='팀 시설 현황';
+
+CREATE TABLE TM_FCLTY_UPGR (
+    UPGR_ID       BIGINT AUTO_INCREMENT NOT NULL COMMENT '업그레이드ID',
+    TM_ID         BIGINT                NOT NULL COMMENT '팀ID | TM FK',
+    FCLTY_TYPE_CD VARCHAR(4)            NOT NULL COMMENT '시설 종류코드',
+    FROM_LVL      TINYINT               NOT NULL COMMENT '업그레이드 전 레벨',
+    TO_LVL        TINYINT               NOT NULL COMMENT '업그레이드 후 레벨',
+    UPGR_COST     BIGINT                NOT NULL COMMENT '투자 금액 (만원)',
+    UPGR_BGNG_DT  DATE                  NOT NULL COMMENT '공사 시작일',
+    UPGR_END_DT   DATE                           COMMENT '완료 예정일',
+    UPGR_STTS_CD  VARCHAR(4)            NOT NULL COMMENT '업그레이드 상태',
+    PRIMARY KEY (UPGR_ID),
+    CONSTRAINT FK_TM_FCLTY_UPGR_TM FOREIGN KEY (TM_ID) REFERENCES TM (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='팀 시설 업그레이드 이력';
+
+CREATE TABLE TM_MKT_SSNT (
+    TM_ID        BIGINT  NOT NULL COMMENT '팀ID | TM FK',
+    SSNT_YR      YEAR    NOT NULL COMMENT '시즌 연도',
+    MKT_SZ       TINYINT          COMMENT '연고 시장 규모 (20~80)',
+    PPLT_RTG     TINYINT          COMMENT '팀 인기 (20~80)',
+    FAN_LYLTY    TINYINT          COMMENT '팬 충성도 (20~80)',
+    FAN_EXP      TINYINT          COMMENT '팬 기대치 (20~80)',
+    REG_INTRST   TINYINT          COMMENT '지역 야구 관심도 (20~80)',
+    NATNL_PPLT   TINYINT          COMMENT '전국구 인기 (20~80)',
+    MRCH_PWR     TINYINT          COMMENT '굿즈 판매력 (20~80)',
+    AVG_ATND_CNT INT              COMMENT '경기당 평균 관중 수',
+    SSNT_TCKT_HLDR INT            COMMENT '시즌권 보유자 수',
+    PRIMARY KEY (TM_ID, SSNT_YR),
+    CONSTRAINT FK_TM_MKT_SSNT_TM FOREIGN KEY (TM_ID) REFERENCES TM (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='팀 시장·팬덤 시즌별';
+
+
+-- ============================================================
+-- 선수 능력치/포지션 이력
+-- ============================================================
+CREATE TABLE PLR_ABLT_MON (
+    PLR_ID   BIGINT     NOT NULL COMMENT '선수ID | PLR FK',
+    SSNT_YR  YEAR       NOT NULL COMMENT '시즌 연도',
+    MON      TINYINT    NOT NULL COMMENT '월 (1~12)',
+    ABLT_CD  VARCHAR(5) NOT NULL COMMENT '능력치코드',
+    ABLT_VAL TINYINT    NOT NULL COMMENT '능력치 수치 (20~80)',
+    PRIMARY KEY (PLR_ID, SSNT_YR, MON, ABLT_CD),
+    CONSTRAINT FK_PLR_ABLT_MON_PLR FOREIGN KEY (PLR_ID) REFERENCES PLR (PLR_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='선수 능력치 월별 이력';
+
+CREATE TABLE PLR_ABLT_SSNT (
+    PLR_ID   BIGINT     NOT NULL COMMENT '선수ID | PLR FK',
+    SSNT_YR  YEAR       NOT NULL COMMENT '시즌 연도',
+    ABLT_CD  VARCHAR(5) NOT NULL COMMENT '능력치코드',
+    ABLT_VAL TINYINT    NOT NULL COMMENT '능력치 수치 (20~80)',
+    PRIMARY KEY (PLR_ID, SSNT_YR, ABLT_CD),
+    CONSTRAINT FK_PLR_ABLT_SSNT_PLR FOREIGN KEY (PLR_ID) REFERENCES PLR (PLR_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='선수 능력치 연도별 이력';
+
+CREATE TABLE PLR_HIDE_ABLT (
+    PLR_ID        BIGINT     NOT NULL COMMENT '선수ID | PLR FK',
+    HIDE_ABLT_CD  VARCHAR(3) NOT NULL COMMENT '히든 능력치코드',
+    HIDE_ABLT_VAL TINYINT    NOT NULL COMMENT '히든 능력치 (1~20)',
+    PRIMARY KEY (PLR_ID, HIDE_ABLT_CD),
+    CONSTRAINT FK_PLR_HIDE_ABLT_PLR FOREIGN KEY (PLR_ID) REFERENCES PLR (PLR_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='선수 히든 능력치';
+
+CREATE TABLE PLR_TRT (
+    PLR_ID BIGINT     NOT NULL COMMENT '선수ID | PLR FK',
+    TRT_CD VARCHAR(4) NOT NULL COMMENT '특성코드',
+    PRIMARY KEY (PLR_ID, TRT_CD),
+    CONSTRAINT FK_PLR_TRT_PLR FOREIGN KEY (PLR_ID) REFERENCES PLR (PLR_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='선수 특성';
+
+CREATE TABLE PLR_POSN_SSNT (
+    PLR_ID         BIGINT  NOT NULL COMMENT '선수ID | PLR FK',
+    SSNT_YR        YEAR    NOT NULL COMMENT '시즌 연도',
+    POSN_CD        CHAR(2) NOT NULL COMMENT '포지션코드',
+    POSN_PRFC_ABLT TINYINT NOT NULL COMMENT '포지션 숙련도 (20~80)',
+    PRIMARY KEY (PLR_ID, SSNT_YR, POSN_CD),
+    CONSTRAINT FK_PLR_POSN_SSNT_PLR FOREIGN KEY (PLR_ID) REFERENCES PLR (PLR_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='선수 포지션 연도별 이력';
+
+CREATE TABLE PLR_ANSL_SAL_HIST (
+    PLR_ID   BIGINT NOT NULL COMMENT '선수ID | PLR FK',
+    SSNT_YR  YEAR   NOT NULL COMMENT '시즌 연도',
+    ANSL_SAL BIGINT NOT NULL COMMENT '연봉 (만원)',
+    PRIMARY KEY (PLR_ID, SSNT_YR),
+    CONSTRAINT FK_PLR_ANSL_SAL_HIST_PLR FOREIGN KEY (PLR_ID) REFERENCES PLR (PLR_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='선수 연봉 연도별 이력';
+
+CREATE TABLE PLR_FATG_COND (
+    PLR_ID  BIGINT           NOT NULL COMMENT '선수ID | PLR FK',
+    SSNT_YR YEAR             NOT NULL COMMENT '시즌 연도',
+    FATG    TINYINT UNSIGNED NOT NULL DEFAULT 30 COMMENT '피로도 (1~100)',
+    COND    TINYINT UNSIGNED NOT NULL DEFAULT 70 COMMENT '컨디션 (1~100)',
+    UPD_DT  DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (PLR_ID, SSNT_YR),
+    CONSTRAINT FK_PLR_FATG_COND_PLR FOREIGN KEY (PLR_ID) REFERENCES PLR (PLR_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='선수 피로도·컨디션';
+
+CREATE TABLE PLR_GRWTH_LOG (
+    GRWTH_ID     BIGINT      AUTO_INCREMENT PRIMARY KEY COMMENT '성장기록ID',
+    PLR_ID       BIGINT      NOT NULL                   COMMENT '선수ID | PLR FK',
+    SSNT_YR      YEAR        NOT NULL                   COMMENT '시즌 연도',
+    GRWTH_DT     DATE        NOT NULL                   COMMENT '성장 일자',
+    GRWTH_TYPE   VARCHAR(20) NOT NULL DEFAULT 'SPRING_CAMP' COMMENT '성장 유형',
+    ABLT_CD      VARCHAR(4)  NOT NULL                   COMMENT '능력치 코드',
+    ABLT_VAL_BFR TINYINT     NOT NULL                   COMMENT '성장 전 수치',
+    ABLT_VAL_AFT TINYINT     NOT NULL                   COMMENT '성장 후 수치',
+    INDEX IDX_GRWTH_PLR  (PLR_ID),
+    INDEX IDX_GRWTH_SSNT (SSNT_YR, GRWTH_TYPE)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='선수 능력치 성장 로그';
+
+
+-- ============================================================
+-- STFF: 스태프 (STFF_TM_CNTRCT SIGN_BONUS 통합)
+-- ============================================================
+CREATE TABLE STFF (
+    STFF_ID       BIGINT AUTO_INCREMENT NOT NULL COMMENT '스태프ID',
+    STFF_NM       VARCHAR(50)           NOT NULL COMMENT '스태프명',
+    STFF_ENG_NM   VARCHAR(100)                   COMMENT '스태프 영문명',
+    STFF_TYPE_CD  VARCHAR(5)            NOT NULL COMMENT '직종코드 | CMN_CD(STFF_TYPE)',
+    STFF_NTNLT    VARCHAR(50)                    COMMENT '국적',
+    STFF_FRGN_YN  CHAR(1)                        COMMENT '외국인 여부',
+    STFF_BRTH_DT  DATE                           COMMENT '생년월일',
+    STFF_EXP_YR   TINYINT                        COMMENT '경력 연수',
+    STFF_ANSL_SAL BIGINT                         COMMENT '연봉 (만원)',
+    STFF_STTS_CD  CHAR(3)               NOT NULL COMMENT '상태코드',
+    TM_ID         BIGINT                         COMMENT '현재 소속팀ID | TM FK',
+    PRIMARY KEY (STFF_ID),
+    CONSTRAINT FK_STFF_TM FOREIGN KEY (TM_ID) REFERENCES TM (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='스태프 마스터';
+
+CREATE TABLE STFF_TM (
+    STFF_ID      BIGINT NOT NULL COMMENT '스태프ID | STFF FK',
+    TM_ID        BIGINT NOT NULL COMMENT '팀ID | TM FK',
+    STFF_BGNG_DT DATE   NOT NULL COMMENT '소속 시작일자',
+    STFF_END_DT  DATE            COMMENT '소속 종료일자',
+    PRIMARY KEY (STFF_ID, TM_ID, STFF_BGNG_DT),
+    CONSTRAINT FK_STFF_TM_STFF FOREIGN KEY (STFF_ID) REFERENCES STFF (STFF_ID),
+    CONSTRAINT FK_STFF_TM_TM   FOREIGN KEY (TM_ID)   REFERENCES TM   (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='스태프-팀 소속';
+
+CREATE TABLE STFF_TM_CNTRCT (
+    STFF_ID        BIGINT     NOT NULL COMMENT '스태프ID | STFF FK',
+    TM_ID          BIGINT     NOT NULL COMMENT '팀ID | TM FK',
+    CNTRCT_BGNG_DT DATE       NOT NULL COMMENT '계약 시작일',
+    ANSL_SAL       BIGINT              COMMENT '연봉 (만원)',
+    SIGN_BONUS     BIGINT              COMMENT '계약금 (만원)',
+    CNTRCT_END_DT  DATE                COMMENT '계약 종료일',
+    STFF_ROLE_CD   VARCHAR(5)          COMMENT '담당 역할 코드',
+    PRIMARY KEY (STFF_ID, TM_ID, CNTRCT_BGNG_DT),
+    CONSTRAINT FK_STFF_TM_CNTRCT_STFF FOREIGN KEY (STFF_ID) REFERENCES STFF (STFF_ID),
+    CONSTRAINT FK_STFF_TM_CNTRCT_TM   FOREIGN KEY (TM_ID)   REFERENCES TM   (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='스태프 계약';
+
+CREATE TABLE STFF_ABLT (
+    STFF_ID       BIGINT     NOT NULL COMMENT '스태프ID | STFF FK',
+    STFF_ABLT_CD  VARCHAR(4) NOT NULL COMMENT '스태프 능력치코드',
+    STFF_ABLT_VAL TINYINT    NOT NULL COMMENT '능력치 수치 (1~20)',
+    PRIMARY KEY (STFF_ID, STFF_ABLT_CD),
+    CONSTRAINT FK_STFF_ABLT_STFF FOREIGN KEY (STFF_ID) REFERENCES STFF (STFF_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='스태프 능력치';
+
+CREATE TABLE STFF_CAND (
+    CAND_ID      BIGINT AUTO_INCREMENT PRIMARY KEY   COMMENT '후보ID',
+    STFF_TYPE_CD VARCHAR(5)  NOT NULL                COMMENT '직종코드',
+    STFF_NM      VARCHAR(50) NOT NULL                COMMENT '후보 이름',
+    STFF_EXP_YR  TINYINT                             COMMENT '경력 연수',
+    OVRL_RTG     TINYINT     NOT NULL                COMMENT '종합 능력 (1~20)',
+    SIGN_BONUS   BIGINT      NOT NULL                COMMENT '계약금 (만원)',
+    ANSL_SAL     BIGINT      NOT NULL                COMMENT '연봉 (만원)',
+    CREATED_AT   DATETIME    DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='감독/코치 선임 후보 (임시)';
+
+CREATE TABLE STFF_CAND_ABLT (
+    CAND_ID       BIGINT     NOT NULL COMMENT '후보ID | STFF_CAND FK',
+    STFF_ABLT_CD  VARCHAR(4) NOT NULL COMMENT '능력치 코드',
+    STFF_ABLT_VAL TINYINT    NOT NULL COMMENT '능력치 (1~20)',
+    PRIMARY KEY (CAND_ID, STFF_ABLT_CD),
+    CONSTRAINT FK_STFF_CAND_ABLT FOREIGN KEY (CAND_ID) REFERENCES STFF_CAND (CAND_ID) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='감독/코치 후보 능력치 (임시)';
+
+
+-- ============================================================
+-- SSNT: 시즌 + 이벤트 (EVNT_TYPE_CD VARCHAR(20), RD_YN 통합)
+-- ============================================================
+CREATE TABLE SSNT (
+    SSNT_YR          YEAR       NOT NULL COMMENT '시즌 연도',
+    SSNT_STTS_CD     VARCHAR(4) NOT NULL COMMENT '시즌 상태코드',
+    SSNT_BGNG_DT     DATE       NOT NULL COMMENT '시즌 전체 시작일',
+    REG_SSNT_BGNG_DT DATE                COMMENT '정규시즌 개막일',
+    REG_SSNT_END_DT  DATE                COMMENT '정규시즌 종료일',
+    PSTSSNT_BGNG_DT  DATE                COMMENT '포스트시즌 시작일',
+    PSTSSNT_END_DT   DATE                COMMENT '포스트시즌 종료일',
+    SSNT_END_DT      DATE                COMMENT '시즌 전체 종료일',
+    CUR_DT           DATE       NOT NULL COMMENT '현재 진행 날짜',
+    PRIMARY KEY (SSNT_YR)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='시즌 마스터';
+
+CREATE TABLE TM_SSNT_REC (
+    TM_ID   BIGINT            NOT NULL COMMENT '팀ID | TM FK',
+    SSNT_YR YEAR              NOT NULL COMMENT '시즌 연도',
+    RS      SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '득점',
+    RA      SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '실점',
+    H       SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '안타',
+    DOBL    SMALLINT UNSIGNED          COMMENT '2루타',
+    TRPL    SMALLINT UNSIGNED          COMMENT '3루타',
+    HR      SMALLINT UNSIGNED          COMMENT '홈런',
+    BB      SMALLINT UNSIGNED          COMMENT '볼넷',
+    SO      SMALLINT UNSIGNED          COMMENT '삼진',
+    SB      SMALLINT UNSIGNED          COMMENT '도루',
+    CS      SMALLINT UNSIGNED          COMMENT '도루 실패',
+    E       SMALLINT UNSIGNED          COMMENT '실책',
+    IP_OUT  INT UNSIGNED               COMMENT '팀 투구 이닝 (아웃카운트)',
+    HA      SMALLINT UNSIGNED          COMMENT '피안타',
+    HRA     SMALLINT UNSIGNED          COMMENT '피홈런',
+    BBA     SMALLINT UNSIGNED          COMMENT '허용 볼넷',
+    SOA     SMALLINT UNSIGNED          COMMENT '탈삼진',
+    ERA     SMALLINT UNSIGNED          COMMENT '자책점',
+    PRIMARY KEY (TM_ID, SSNT_YR),
+    CONSTRAINT FK_TM_SSNT_REC_TM FOREIGN KEY (TM_ID) REFERENCES TM (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='팀 시즌 누적 기록';
+
+CREATE TABLE TM_MON_REC (
+    TM_ID   BIGINT            NOT NULL COMMENT '팀ID | TM FK',
+    SSNT_YR YEAR              NOT NULL COMMENT '시즌 연도',
+    MON     TINYINT           NOT NULL COMMENT '월 (1~12)',
+    W       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    L       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    T       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    RS      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    RA      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    H       SMALLINT UNSIGNED,
+    DOBL    SMALLINT UNSIGNED,
+    TRPL    SMALLINT UNSIGNED,
+    HR      SMALLINT UNSIGNED,
+    BB      SMALLINT UNSIGNED,
+    SO      SMALLINT UNSIGNED,
+    SB      SMALLINT UNSIGNED,
+    CS      SMALLINT UNSIGNED,
+    E       SMALLINT UNSIGNED,
+    IP_OUT  INT UNSIGNED,
+    HA      SMALLINT UNSIGNED,
+    HRA     SMALLINT UNSIGNED,
+    BBA     SMALLINT UNSIGNED,
+    SOA     SMALLINT UNSIGNED,
+    ERA     SMALLINT UNSIGNED,
+    PRIMARY KEY (TM_ID, SSNT_YR, MON),
+    CONSTRAINT FK_TM_MON_REC_TM FOREIGN KEY (TM_ID) REFERENCES TM (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='팀 월간 누적 기록';
+
+CREATE TABLE SSNT_EVNT (
+    EVNT_ID      BIGINT AUTO_INCREMENT NOT NULL COMMENT '이벤트ID',
+    SSNT_YR      YEAR                  NOT NULL COMMENT '시즌 연도',
+    EVNT_DT      DATE                  NOT NULL COMMENT '이벤트 발생일자',
+    TM_ID        BIGINT                         COMMENT '관련 팀ID | TM FK',
+    PLR_ID       BIGINT                         COMMENT '관련 선수ID | PLR FK',
+    EVNT_TYPE_CD VARCHAR(20)           NOT NULL COMMENT '이벤트 종류코드',
+    EVNT_TTLT    VARCHAR(200)          NOT NULL COMMENT '이벤트 제목',
+    EVNT_CNTS    TEXT                           COMMENT '이벤트 상세 내용',
+    RD_YN        CHAR(1)               NOT NULL DEFAULT '0' COMMENT '읽기여부 (0=미읽음, 1=읽음)',
+    PRIMARY KEY (EVNT_ID),
+    CONSTRAINT FK_SSNT_EVNT_TM  FOREIGN KEY (TM_ID)  REFERENCES TM  (TM_ID),
+    CONSTRAINT FK_SSNT_EVNT_PLR FOREIGN KEY (PLR_ID) REFERENCES PLR (PLR_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='시즌 이벤트·뉴스';
+
+CREATE TABLE PSTSSNT_SRS (
+    SSNT_YR     YEAR    NOT NULL COMMENT '시즌 연도',
+    RND_CD      CHAR(2) NOT NULL COMMENT '라운드코드 (WC/SP/PO/KS)',
+    TM1_ID      BIGINT  NOT NULL COMMENT '팀1 ID | TM FK',
+    TM2_ID      BIGINT  NOT NULL COMMENT '팀2 ID | TM FK',
+    TM1_WIN_CNT TINYINT NOT NULL DEFAULT 0 COMMENT '팀1 시리즈 승 수',
+    TM2_WIN_CNT TINYINT NOT NULL DEFAULT 0 COMMENT '팀2 시리즈 승 수',
+    WIN_TM_ID   BIGINT           COMMENT '시리즈 승자 팀ID | TM FK',
+    SRS_STTS_CD CHAR(4) NOT NULL COMMENT '시리즈 상태 (PROG/CMPL)',
+    PRIMARY KEY (SSNT_YR, RND_CD),
+    CONSTRAINT FK_PSTSSNT_SRS_TM1    FOREIGN KEY (TM1_ID)    REFERENCES TM (TM_ID),
+    CONSTRAINT FK_PSTSSNT_SRS_TM2    FOREIGN KEY (TM2_ID)    REFERENCES TM (TM_ID),
+    CONSTRAINT FK_PSTSSNT_SRS_WIN_TM FOREIGN KEY (WIN_TM_ID) REFERENCES TM (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='포스트시즌 시리즈';
+
+CREATE TABLE PSTSSNT_GAME (
+    SSNT_YR YEAR    NOT NULL COMMENT '시즌 연도',
+    RND_CD  CHAR(2) NOT NULL COMMENT '라운드코드',
+    GAME_NO TINYINT NOT NULL COMMENT '시리즈 내 경기번호',
+    GAME_ID BIGINT  NOT NULL COMMENT '경기ID | GAME FK',
+    PRIMARY KEY (SSNT_YR, RND_CD, GAME_NO),
+    CONSTRAINT FK_PSTSSNT_GAME_SRS  FOREIGN KEY (SSNT_YR, RND_CD) REFERENCES PSTSSNT_SRS (SSNT_YR, RND_CD),
+    CONSTRAINT FK_PSTSSNT_GAME_GAME FOREIGN KEY (GAME_ID)          REFERENCES GAME        (GAME_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='포스트시즌 경기';
+
+
+-- ============================================================
+-- 게임 전역 설정 + 라인업/로테이션/불펜
+-- ============================================================
+CREATE TABLE GAME_CFG (
+    CFG_KEY VARCHAR(50)  NOT NULL COMMENT '설정 키',
+    CFG_VAL VARCHAR(500)          COMMENT '설정 값',
+    UPD_DT  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (CFG_KEY)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='게임 전역 설정';
+
+CREATE TABLE TM_LINEUP (
+    TM_ID     BIGINT  NOT NULL COMMENT '팀ID',
+    SSNT_YR   YEAR    NOT NULL COMMENT '시즌 연도',
+    LINEUP_NO TINYINT NOT NULL COMMENT '타순 번호 (1~9)',
+    PLR_ID    BIGINT  NOT NULL COMMENT '해당 타순의 선수ID',
+    POSN_CD   CHAR(2) NOT NULL COMMENT '수비 포지션 코드',
+    PRIMARY KEY (TM_ID, SSNT_YR, LINEUP_NO),
+    CONSTRAINT FK_TM_LINEUP_TM  FOREIGN KEY (TM_ID)  REFERENCES TM  (TM_ID),
+    CONSTRAINT FK_TM_LINEUP_PLR FOREIGN KEY (PLR_ID) REFERENCES PLR (PLR_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='팀 타순·수비 배치';
+
+CREATE TABLE TM_ROTATION (
+    TM_ID   BIGINT  NOT NULL COMMENT '팀ID',
+    SSNT_YR YEAR    NOT NULL COMMENT '시즌 연도',
+    ROT_ORD TINYINT NOT NULL COMMENT '로테이션 순서 (1~5)',
+    PLR_ID  BIGINT  NOT NULL COMMENT '해당 순서의 선발 투수',
+    PRIMARY KEY (TM_ID, SSNT_YR, ROT_ORD),
+    CONSTRAINT FK_TM_ROTATION_TM  FOREIGN KEY (TM_ID)  REFERENCES TM  (TM_ID),
+    CONSTRAINT FK_TM_ROTATION_PLR FOREIGN KEY (PLR_ID) REFERENCES PLR (PLR_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='팀 선발 로테이션';
+
+CREATE TABLE TM_BULLPEN (
+    TM_ID   BIGINT  NOT NULL COMMENT '팀ID',
+    SSNT_YR YEAR    NOT NULL COMMENT '시즌 연도',
+    PLR_ID  BIGINT  NOT NULL COMMENT '투수 선수ID',
+    ROLE_CD CHAR(2) NOT NULL COMMENT '불펜 역할 (CL/SU/MR)',
+    PRIMARY KEY (TM_ID, SSNT_YR, PLR_ID),
+    CONSTRAINT FK_TM_BULLPEN_TM  FOREIGN KEY (TM_ID)  REFERENCES TM  (TM_ID),
+    CONSTRAINT FK_TM_BULLPEN_PLR FOREIGN KEY (PLR_ID) REFERENCES PLR (PLR_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='팀 불펜 역할 배정';
+
+
+-- ============================================================
+-- BRDCST_SPNSR: 방송국 스폰서
+-- ============================================================
+CREATE TABLE BRDCST_SPNSR (
+    BRDCST_CD  CHAR(3)  NOT NULL COMMENT '방송국코드 (SBS/KBS/MBC)',
+    BRDCST_NM  VARCHAR(20) NOT NULL COMMENT '방송국명',
+    CNTRCT_FEE BIGINT   NOT NULL COMMENT '계약금 (만원)',
+    WIN_BONUS  INT      NOT NULL COMMENT '경기 승리 수당 (만원/승)',
+    POST_BONUS BIGINT   NOT NULL COMMENT '포스트시즌 진출 수당 (만원)',
+    KS_BONUS   BIGINT   NOT NULL COMMENT '한국시리즈 우승 수당 (만원)',
+    PRIMARY KEY (BRDCST_CD)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='방송국 스폰서 계약 옵션';
+
+
+-- ============================================================
+-- 외국인 선수 계약
+-- ============================================================
+CREATE TABLE FRGN_PLR_CAND (
+    CAND_ID        BIGINT      AUTO_INCREMENT PRIMARY KEY  COMMENT '후보ID',
+    SSNT_YR        YEAR        NOT NULL                    COMMENT '시즌 연도',
+    PLR_NM         VARCHAR(50) NOT NULL                    COMMENT '선수 이름',
+    NTLY_CD        VARCHAR(5)  NOT NULL                    COMMENT '국적 코드',
+    AGE            TINYINT     NOT NULL                    COMMENT '나이',
+    PLR_TYPE_CD    CHAR(1)     NOT NULL                    COMMENT '선수 유형 (P=투수, B=야수)',
+    REPR_POSN_CD   VARCHAR(5)  NOT NULL                    COMMENT '주 포지션 코드',
+    PRV_LG_NM      VARCHAR(50) NOT NULL                    COMMENT '이전 소속 리그명',
+    WANT_SAL       BIGINT      NOT NULL                    COMMENT '희망 연봉 (만원)',
+    CNTRCT_STTS_CD VARCHAR(15) NOT NULL DEFAULT 'AVAIL'   COMMENT '계약 상태',
+    SGND_TM_ID     BIGINT                                  COMMENT '계약 팀ID',
+    CREATED_AT     DATETIME    DEFAULT CURRENT_TIMESTAMP,
+    INDEX IDX_FRGN_CAND_SSNT (SSNT_YR)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='외국인 선수 계약 후보';
+
+CREATE TABLE FRGN_PLR_CAND_STAT (
+    CAND_ID  BIGINT       NOT NULL COMMENT '후보ID | FRGN_PLR_CAND FK',
+    STAT_CD  VARCHAR(10)  NOT NULL COMMENT '스탯 코드',
+    STAT_VAL DECIMAL(8,3) NOT NULL COMMENT '스탯 값',
+    PRIMARY KEY (CAND_ID, STAT_CD),
+    CONSTRAINT FK_FRGN_STAT_CAND FOREIGN KEY (CAND_ID)
+        REFERENCES FRGN_PLR_CAND (CAND_ID) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='외국인 선수 후보 스탯';
+
+CREATE TABLE FRGN_PLR_CAND_ABLT (
+    CAND_ID  BIGINT     NOT NULL COMMENT '후보ID | FRGN_PLR_CAND FK',
+    ABLT_CD  VARCHAR(4) NOT NULL COMMENT '능력치 코드',
+    ABLT_VAL TINYINT    NOT NULL COMMENT '능력치 (20~80)',
+    PRIMARY KEY (CAND_ID, ABLT_CD),
+    CONSTRAINT FK_FRGN_ABLT_CAND FOREIGN KEY (CAND_ID)
+        REFERENCES FRGN_PLR_CAND (CAND_ID) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='외국인 선수 후보 능력치';
+
+CREATE TABLE FRGN_PLR_OFFER (
+    OFFER_ID      BIGINT      AUTO_INCREMENT PRIMARY KEY  COMMENT '오퍼ID',
+    CAND_ID       BIGINT      NOT NULL                    COMMENT '후보ID | FRGN_PLR_CAND FK',
+    TM_ID         BIGINT      NOT NULL                    COMMENT '오퍼 팀ID | TM FK',
+    SSNT_YR       YEAR        NOT NULL                    COMMENT '시즌 연도',
+    OFFER_DT      DATE        NOT NULL                    COMMENT '오퍼 날짜',
+    OFFER_SAL     BIGINT      NOT NULL                    COMMENT '제안 연봉 (만원)',
+    OFFER_STTS_CD VARCHAR(10) NOT NULL DEFAULT 'PENDING'  COMMENT '오퍼 상태',
+    CREATED_AT    DATETIME    DEFAULT CURRENT_TIMESTAMP,
+    INDEX IDX_OFFER_CAND (CAND_ID),
+    INDEX IDX_OFFER_TM   (TM_ID, SSNT_YR),
+    CONSTRAINT FK_OFFER_CAND FOREIGN KEY (CAND_ID)
+        REFERENCES FRGN_PLR_CAND (CAND_ID) ON DELETE CASCADE,
+    CONSTRAINT FK_OFFER_TM FOREIGN KEY (TM_ID)
+        REFERENCES TM (TM_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='외국인 선수 연봉 오퍼';

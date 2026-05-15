@@ -1,0 +1,683 @@
+package com.kbo.gm.domain.season.service;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kbo.gm.domain.season.dto.GameResultProgressDto;
+import com.kbo.gm.domain.season.mapper.GameResultMapper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import java.util.*;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class GameResultService {
+
+    private static final int TOTAL_STEPS = 8;
+
+    private final GameResultMapper mapper;
+    private final ObjectMapper objectMapper;
+    private final JdbcTemplate jdbcTemplate;
+
+    public void processGames(int ssntYr, String gameDt, SseEmitter emitter) {
+        try {
+            // Step 1: 경기 목록 조회 및 시뮬레이션 준비
+            emit(emitter, 1, ssntYr, gameDt, "경기 결과 시뮬레이션 준비 중...", false);
+            List<Map<String, Object>> games = mapper.findGamesOnDate(ssntYr, gameDt);
+            if (games.isEmpty()) {
+                emit(emitter, TOTAL_STEPS, ssntYr, gameDt, "처리할 경기가 없습니다.", true);
+                emitter.complete();
+                return;
+            }
+
+            // Step 2: 경기 점수 시뮬레이션 및 결과 저장
+            emit(emitter, 2, ssntYr, gameDt, "경기 점수 시뮬레이션 중... (" + games.size() + "경기)", false);
+            List<Map<String, Object>> results = simulateAndSaveGames(games);
+
+            // Step 3: 선수 경기 기록 저장
+            emit(emitter, 3, ssntYr, gameDt, "선수 경기 기록 저장 중...", false);
+            savePlayerGameRecords(results, ssntYr);
+
+            // Step 4: 순위 갱신
+            emit(emitter, 4, ssntYr, gameDt, "팀 순위 갱신 중...", false);
+            updateStandings(results, ssntYr);
+
+            // Step 5: 선수 피로도/컨디션 반영
+            emit(emitter, 5, ssntYr, gameDt, "선수 피로도·컨디션 반영 중...", false);
+            applyFatigueCondition(results, ssntYr);
+
+            // Step 6: 재정 반영 (티켓 수입)
+            emit(emitter, 6, ssntYr, gameDt, "구단 재정 반영 중...", false);
+            applyFinance(results, ssntYr);
+
+            // Step 7: 경기 뉴스/이벤트 생성
+            emit(emitter, 7, ssntYr, gameDt, "경기 이벤트 생성 중...", false);
+            generateGameEvents(results, ssntYr, gameDt);
+
+            // Step 8: 경기 처리 완료 확정
+            emit(emitter, 8, ssntYr, gameDt, "경기 처리 완료 중...", false);
+            finalizeGames(results);
+
+            emit(emitter, TOTAL_STEPS, ssntYr, gameDt, gameDt + " 경기 처리 완료! (" + games.size() + "경기)", true);
+            emitter.complete();
+
+        } catch (Exception e) {
+            log.error("경기 결과 처리 실패 ({}년 {})", ssntYr, gameDt, e);
+            try {
+                GameResultProgressDto err = GameResultProgressDto.builder()
+                        .step(0).total(TOTAL_STEPS).message("오류: " + e.getMessage())
+                        .done(false).error(e.getMessage()).ssntYr(ssntYr).gameDt(gameDt)
+                        .build();
+                emitter.send(SseEmitter.event().data(objectMapper.writeValueAsString(err)));
+            } catch (Exception ignored) {}
+            emitter.completeWithError(e);
+        }
+    }
+
+    /** AdvanceWeekService 에서 SSE 없이 호출하는 내부 실행 메서드 */
+    public void processGamesInternal(int ssntYr, String gameDt) {
+        List<Map<String, Object>> games = mapper.findGamesOnDate(ssntYr, gameDt);
+        if (games.isEmpty()) return;
+        List<Map<String, Object>> results = simulateAndSaveGames(games);
+        savePlayerGameRecords(results, ssntYr);
+        updateStandings(results, ssntYr);
+        applyFatigueCondition(results, ssntYr);
+        applyFinance(results, ssntYr);
+        generateGameEvents(results, ssntYr, gameDt);
+        finalizeGames(results);
+    }
+
+    // ----- Step 2: 경기 시뮬레이션 -----
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> simulateAndSaveGames(List<Map<String, Object>> games) {
+        List<Map<String, Object>> results = new ArrayList<>();
+        Random rnd = new Random();
+
+        for (Map<String, Object> game : games) {
+            long gameId   = toLong(game.get("GAME_ID"));
+            long homeTmId = toLong(game.get("HOME_TM_ID"));
+            long awayTmId = toLong(game.get("AWAY_TM_ID"));
+
+            // 타자/투수 라인업 조회
+            List<Map<String, Object>> homeBatterList  = getLineupBatters(homeTmId);
+            List<Map<String, Object>> awayBatterList  = getLineupBatters(awayTmId);
+            List<Map<String, Object>> homePitcherList = getLineupPitchers(homeTmId);
+            List<Map<String, Object>> awayPitcherList = getLineupPitchers(awayTmId);
+
+            // 팀 타격/투구 능력치 계산
+            double homeBatting  = calcBattingRating(getAbilityList(homeTmId, false));
+            double awayBatting  = calcBattingRating(getAbilityList(awayTmId, false));
+            double homePitching = calcPitchingRating(getAbilityList(homeTmId, true));
+            double awayPitching = calcPitchingRating(getAbilityList(awayTmId, true));
+
+            // 능력치 기반 기대 득점 (Poisson)
+            // 홈팀 득점 = 홈팀 타격 vs 어웨이팀 투구
+            // 어웨이팀 득점 = 어웨이팀 타격 vs 홈팀 투구
+            double homeLambda = Math.min(12.0, Math.max(0.5, 4.5 * (homeBatting / 50.0) * (50.0 / awayPitching)));
+            double awayLambda = Math.min(12.0, Math.max(0.5, 4.5 * (awayBatting / 50.0) * (50.0 / homePitching)));
+
+            int homeScore = poissonRandom(homeLambda, rnd);
+            int awayScore = poissonRandom(awayLambda, rnd);
+
+            // 동점 방지: 어웨이 점수 재롤
+            while (homeScore == awayScore) {
+                awayScore = poissonRandom(awayLambda, rnd);
+            }
+
+            Long winTmId = homeScore > awayScore ? homeTmId
+                         : awayScore > homeScore ? awayTmId : null;
+
+            jdbcTemplate.update(
+                    "UPDATE GAME SET HOME_SCORE=?, AWAY_SCORE=?, GAME_STTS_CD='03' WHERE GAME_ID=?",
+                    homeScore, awayScore, gameId);
+
+            Map<String, Object> result = new HashMap<>(game);
+            result.put("HOME_SCORE", homeScore);
+            result.put("AWAY_SCORE", awayScore);
+            result.put("WIN_TM_ID", winTmId);
+            result.put("HOME_BATTING_PLAYERS",  homeBatterList);
+            result.put("AWAY_BATTING_PLAYERS",  awayBatterList);
+            result.put("HOME_PITCHING_PLAYERS", homePitcherList);
+            result.put("AWAY_PITCHING_PLAYERS", awayPitcherList);
+            results.add(result);
+
+            log.debug("경기 시뮬레이션: GAME_ID={} {}:{} 최종{}:{}",
+                    gameId, game.get("HOME_TM_KR_NM"), game.get("AWAY_TM_KR_NM"), homeScore, awayScore);
+        }
+        return results;
+    }
+
+    /** 팀의 타자 능력치(CNT, PWR) 목록 조회 — 능력치 평균 계산용 */
+    private List<Map<String, Object>> getAbilityList(long tmId, boolean pitcher) {
+        String posnFilter = pitcher ? "AND p.REPR_POSN_CD = '10'" : "AND p.REPR_POSN_CD != '10'";
+        String abilities  = pitcher ? "'VEL', 'CTL', 'STM'" : "'CNT', 'PWR'";
+        return jdbcTemplate.queryForList(
+                "SELECT pa.PLR_ID, pa.ABLT_CD, pa.ABLT_VAL " +
+                "FROM PLR_ENTY pe " +
+                "JOIN PLR p ON p.PLR_ID = pe.PLR_ID " +
+                "JOIN PLR_ABLT pa ON pa.PLR_ID = pe.PLR_ID " +
+                "WHERE pe.TM_ID = ? AND pe.ENTY_TYPE_CD = '1GUN' " +
+                "AND p.PLR_STTS_CD = 'AT' " + posnFilter + " " +
+                "AND pa.ABLT_CD IN (" + abilities + ")",
+                tmId);
+    }
+
+    /** 팀 라인업 타자 상세 정보 (CNT, PWR, STL) 최대 9명 */
+    private List<Map<String, Object>> getLineupBatters(long tmId) {
+        return jdbcTemplate.queryForList(
+                "SELECT pe.PLR_ID, " +
+                "MAX(CASE WHEN pa.ABLT_CD='CNT' THEN pa.ABLT_VAL END) AS CNT, " +
+                "MAX(CASE WHEN pa.ABLT_CD='PWR' THEN pa.ABLT_VAL END) AS PWR, " +
+                "MAX(CASE WHEN pa.ABLT_CD='STL' THEN pa.ABLT_VAL END) AS STL " +
+                "FROM PLR_ENTY pe " +
+                "JOIN PLR p ON p.PLR_ID = pe.PLR_ID " +
+                "JOIN PLR_ABLT pa ON pa.PLR_ID = pe.PLR_ID " +
+                "WHERE pe.TM_ID = ? AND pe.ENTY_TYPE_CD = '1GUN' " +
+                "AND p.PLR_STTS_CD = 'AT' AND p.REPR_POSN_CD != '10' " +
+                "AND pa.ABLT_CD IN ('CNT', 'PWR', 'STL') " +
+                "GROUP BY pe.PLR_ID " +
+                "ORDER BY pe.PLR_ID LIMIT 9",
+                tmId);
+    }
+
+    /** 팀 라인업 투수 상세 정보 (VEL, CTL, STM) 최대 5명 */
+    private List<Map<String, Object>> getLineupPitchers(long tmId) {
+        return jdbcTemplate.queryForList(
+                "SELECT pe.PLR_ID, p.POSN_CD, " +
+                "MAX(CASE WHEN pa.ABLT_CD='VEL' THEN pa.ABLT_VAL END) AS VEL, " +
+                "MAX(CASE WHEN pa.ABLT_CD='CTL' THEN pa.ABLT_VAL END) AS CTL, " +
+                "MAX(CASE WHEN pa.ABLT_CD='STM' THEN pa.ABLT_VAL END) AS STM " +
+                "FROM PLR_ENTY pe " +
+                "JOIN PLR p ON p.PLR_ID = pe.PLR_ID " +
+                "JOIN PLR_ABLT pa ON pa.PLR_ID = pe.PLR_ID " +
+                "WHERE pe.TM_ID = ? AND pe.ENTY_TYPE_CD = '1GUN' " +
+                "AND p.PLR_STTS_CD = 'AT' AND p.REPR_POSN_CD = '10' " +
+                "AND pa.ABLT_CD IN ('VEL', 'CTL', 'STM') " +
+                "GROUP BY pe.PLR_ID, p.POSN_CD " +
+                "ORDER BY FIELD(p.POSN_CD, '10', '11', '12') LIMIT 5",
+                tmId);
+    }
+
+    /** 타격 능력치 평균 (CNT + PWR) / 2. 선수 없으면 50 */
+    private double calcBattingRating(List<Map<String, Object>> abilityRows) {
+        if (abilityRows.isEmpty()) return 50.0;
+        Map<Long, Map<String, Integer>> plrMap = new HashMap<>();
+        for (Map<String, Object> row : abilityRows) {
+            long plrId = toLong(row.get("PLR_ID"));
+            String cd = (String) row.get("ABLT_CD");
+            int val = toInt(row.get("ABLT_VAL"));
+            plrMap.computeIfAbsent(plrId, k -> new HashMap<>()).put(cd, val);
+        }
+        double sum = 0;
+        int cnt = 0;
+        for (Map<String, Integer> m : plrMap.values()) {
+            int cntVal = m.getOrDefault("CNT", 50);
+            int pwrVal = m.getOrDefault("PWR", 50);
+            sum += (cntVal + pwrVal) / 2.0;
+            cnt++;
+        }
+        return cnt == 0 ? 50.0 : sum / cnt;
+    }
+
+    /** 투구 능력치 평균 (VEL + CTL) / 2. 투수 없으면 50 */
+    private double calcPitchingRating(List<Map<String, Object>> abilityRows) {
+        if (abilityRows.isEmpty()) return 50.0;
+        Map<Long, Map<String, Integer>> plrMap = new HashMap<>();
+        for (Map<String, Object> row : abilityRows) {
+            long plrId = toLong(row.get("PLR_ID"));
+            String cd = (String) row.get("ABLT_CD");
+            int val = toInt(row.get("ABLT_VAL"));
+            plrMap.computeIfAbsent(plrId, k -> new HashMap<>()).put(cd, val);
+        }
+        double sum = 0;
+        int cnt = 0;
+        for (Map<String, Integer> m : plrMap.values()) {
+            int velVal = m.getOrDefault("VEL", 50);
+            int ctlVal = m.getOrDefault("CTL", 50);
+            sum += (velVal + ctlVal) / 2.0;
+            cnt++;
+        }
+        return cnt == 0 ? 50.0 : sum / cnt;
+    }
+
+    /** 포아송 난수 생성 */
+    private int poissonRandom(double lambda, Random rnd) {
+        double L = Math.exp(-lambda);
+        int k = 0;
+        double p = 1.0;
+        do {
+            k++;
+            p *= rnd.nextDouble();
+        } while (p > L);
+        return k - 1;
+    }
+
+    // ----- Step 3: 선수 경기 기록 저장 -----
+
+    @SuppressWarnings("unchecked")
+    private void savePlayerGameRecords(List<Map<String, Object>> results, int ssntYr) {
+        Random rnd = new Random();
+
+        for (Map<String, Object> r : results) {
+            long gameId   = toLong(r.get("GAME_ID"));
+            long homeTmId = toLong(r.get("HOME_TM_ID"));
+            long awayTmId = toLong(r.get("AWAY_TM_ID"));
+            int  homeScore = toInt(r.get("HOME_SCORE"));
+            int  awayScore = toInt(r.get("AWAY_SCORE"));
+            Long winTmId  = (Long) r.get("WIN_TM_ID");
+
+            List<Map<String, Object>> homeBatters  = (List<Map<String, Object>>) r.get("HOME_BATTING_PLAYERS");
+            List<Map<String, Object>> awayBatters  = (List<Map<String, Object>>) r.get("AWAY_BATTING_PLAYERS");
+            List<Map<String, Object>> homePitchers = (List<Map<String, Object>>) r.get("HOME_PITCHING_PLAYERS");
+            List<Map<String, Object>> awayPitchers = (List<Map<String, Object>>) r.get("AWAY_PITCHING_PLAYERS");
+
+            if (homeBatters == null) homeBatters = Collections.emptyList();
+            if (awayBatters == null) awayBatters = Collections.emptyList();
+            if (homePitchers == null) homePitchers = Collections.emptyList();
+            if (awayPitchers == null) awayPitchers = Collections.emptyList();
+
+            // 타자 기록 저장
+            saveBatterRecords(homeBatters, gameId, homeTmId, ssntYr, rnd);
+            saveBatterRecords(awayBatters, gameId, awayTmId, ssntYr, rnd);
+
+            // 투수 기록 저장
+            boolean homeWon = winTmId != null && winTmId.equals(homeTmId);
+            boolean awayWon = winTmId != null && winTmId.equals(awayTmId);
+            savePitcherRecords(homePitchers, gameId, homeTmId, ssntYr, homeWon, awayScore, rnd);
+            savePitcherRecords(awayPitchers, gameId, awayTmId, ssntYr, awayWon, homeScore, rnd);
+        }
+    }
+
+    private void saveBatterRecords(List<Map<String, Object>> batters, long gameId, long tmId,
+                                   int ssntYr, Random rnd) {
+        for (Map<String, Object> batter : batters) {
+            long plrId = toLong(batter.get("PLR_ID"));
+            if (plrId == 0) continue;
+
+            int cnt = toInt(batter.get("CNT"));
+            if (cnt == 0) cnt = 50;
+            int pwr = toInt(batter.get("PWR"));
+            if (pwr == 0) pwr = 40;
+            int stl = toInt(batter.get("STL"));
+            if (stl == 0) stl = 40;
+
+            int pa = 4 + rnd.nextInt(2); // 4 or 5
+            int bb = rnd.nextDouble() < 0.08 ? 1 : 0;
+            int ab = pa - bb;
+
+            double hitProb = 0.150 + (cnt - 20.0) / 60.0 * 0.200;
+            hitProb = Math.min(0.400, Math.max(0.100, hitProb));
+            int h = binomialCount(ab, hitProb, rnd);
+
+            double hrProb = 0.005 + (pwr - 20.0) / 60.0 * 0.045;
+            hrProb = Math.min(0.100, Math.max(0.001, hrProb));
+            int hr = binomialCount(h, hrProb * 2, rnd);
+            hr = Math.min(hr, h);
+
+            int nonHrHits = h - hr;
+            int dobl = binomialCount(nonHrHits, 0.20, rnd);
+            int trpl = binomialCount(nonHrHits - dobl, 0.03, rnd);
+            int so = binomialCount(ab - h, 0.25, rnd);
+            int sb = rnd.nextDouble() < Math.max(0, (stl - 20.0) / 60.0 * 0.15) ? 1 : 0;
+            int r  = h > 0 && rnd.nextDouble() < 0.30 ? 1 : 0;
+            int rbi = h > 0 && rnd.nextDouble() < 0.35 ? 1 : 0;
+
+            jdbcTemplate.update(
+                    "INSERT IGNORE INTO PLR_BATR_GAME_REC " +
+                    "(PLR_ID, GAME_ID, TM_ID, PA, AB, H, DOBL, TRPL, HR, RBI, R, BB, IBB, SO, SB, CS, HBP, SAC, SF, GIDP) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 0, 0, 0, 0, 0)",
+                    plrId, gameId, tmId, pa, ab, h, dobl, trpl, hr, rbi, r, bb, so, sb);
+
+            // 시즌 누적 기록 UPSERT
+            jdbcTemplate.update(
+                    "INSERT INTO PLR_BATR_SSNT_REC (PLR_ID, SSNT_YR, PA, AB, H, DOBL, TRPL, HR, RBI, R, BB, SO, SB) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
+                    "ON DUPLICATE KEY UPDATE " +
+                    "PA=PA+VALUES(PA), AB=AB+VALUES(AB), H=H+VALUES(H), " +
+                    "DOBL=DOBL+VALUES(DOBL), TRPL=TRPL+VALUES(TRPL), HR=HR+VALUES(HR), " +
+                    "RBI=RBI+VALUES(RBI), R=R+VALUES(R), BB=BB+VALUES(BB), " +
+                    "SO=SO+VALUES(SO), SB=SB+VALUES(SB)",
+                    plrId, ssntYr, pa, ab, h, dobl, trpl, hr, rbi, r, bb, so, sb);
+        }
+    }
+
+    private void savePitcherRecords(List<Map<String, Object>> pitchers, long gameId, long tmId,
+                                    int ssntYr, boolean teamWon, int runsAllowed, Random rnd) {
+        // 최대 3명 처리 (SP, RP, CP)
+        int maxPitchers = Math.min(3, pitchers.size());
+        for (int idx = 0; idx < maxPitchers; idx++) {
+            Map<String, Object> pitcher = pitchers.get(idx);
+            long plrId = toLong(pitcher.get("PLR_ID"));
+            if (plrId == 0) continue;
+
+            int vel = toInt(pitcher.get("VEL"));
+            if (vel == 0) vel = 50;
+            int ctl = toInt(pitcher.get("CTL"));
+            if (ctl == 0) ctl = 50;
+            int stm = toInt(pitcher.get("STM"));
+            if (stm == 0) stm = 50;
+
+            // 포지션/역할 결정
+            String ptchRoleCd;
+            int baseIpOut;
+            if (idx == 0) {
+                ptchRoleCd = "SP";
+                baseIpOut  = 15 + (rnd.nextInt(7) - 3); // 12~18
+            } else if (idx == maxPitchers - 1 && maxPitchers >= 3) {
+                ptchRoleCd = "CP";
+                baseIpOut  = 3;
+            } else {
+                ptchRoleCd = "RP";
+                baseIpOut  = 3 + rnd.nextInt(4); // 3~6
+            }
+            int ipOut = Math.max(1, baseIpOut);
+
+            double kRate  = Math.min(0.40, Math.max(0.10, 0.15 + (vel - 20.0) / 60.0 * 0.20));
+            double bbRate = Math.min(0.15, Math.max(0.02, 0.10 - (ctl - 20.0) / 60.0 * 0.07));
+
+            int k  = binomialCount(ipOut, kRate, rnd);
+            int bb = binomialCount(ipOut, bbRate, rnd);
+            int hAllowed = (int) Math.ceil(ipOut * (1.0 - kRate));
+            int er = (int) Math.round(hAllowed * 0.35);
+
+            // 승/패/세이브 결정
+            int w = 0, l = 0, sv = 0;
+            if (idx == 0) { // SP
+                if (teamWon && ipOut >= 15) w = 1;       // 5이닝 이상 (15아웃) 완투 승리
+                else if (!teamWon && ipOut >= 12) l = 1; // 4이닝 이상 책임 패
+            } else if ("CP".equals(ptchRoleCd) && teamWon) {
+                sv = 1;
+            }
+
+            int bf = ipOut + hAllowed + bb;
+
+            jdbcTemplate.update(
+                    "INSERT IGNORE INTO PLR_PTCH_GAME_REC " +
+                    "(PLR_ID, GAME_ID, TM_ID, PTCH_ROLE_CD, IP_OUT, BF, H, DOBL, TRPL, HR, R, ER, BB, IBB, SO, HBP, W, L, SV, HLD, BSV, CG, SHO, PITCHES, STRIKES) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, 0, ?, 0, ?, ?, ?, 0, 0, 0, 0, ?, ?)",
+                    plrId, gameId, tmId, ptchRoleCd, ipOut, bf,
+                    hAllowed, runsAllowed, er, bb, k, w, l, sv,
+                    (int)(ipOut * 3.8), (int)(ipOut * 2.5));
+
+            // 시즌 누적 기록 UPSERT
+            jdbcTemplate.update(
+                    "INSERT INTO PLR_PTCH_SSNT_REC (PLR_ID, SSNT_YR, IP_OUT, BF, H, R, ER, BB, SO, W, L, SV, HLD) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0) " +
+                    "ON DUPLICATE KEY UPDATE " +
+                    "IP_OUT=IP_OUT+VALUES(IP_OUT), BF=BF+VALUES(BF), H=H+VALUES(H), " +
+                    "R=R+VALUES(R), ER=ER+VALUES(ER), BB=BB+VALUES(BB), SO=SO+VALUES(SO), " +
+                    "W=W+VALUES(W), L=L+VALUES(L), SV=SV+VALUES(SV)",
+                    plrId, ssntYr, ipOut, bf, hAllowed, runsAllowed, er, bb, k, w, l, sv);
+        }
+    }
+
+    // ----- Step 4: 순위 갱신 -----
+
+    private void updateStandings(List<Map<String, Object>> results, int ssntYr) {
+        for (Map<String, Object> r : results) {
+            long homeTmId = toLong(r.get("HOME_TM_ID"));
+            long awayTmId = toLong(r.get("AWAY_TM_ID"));
+            int homeScore = toInt(r.get("HOME_SCORE"));
+            int awayScore = toInt(r.get("AWAY_SCORE"));
+
+            if (homeScore > awayScore) {
+                updateStnd(homeTmId, ssntYr, 1, 0, 0, homeScore, awayScore);
+                updateStnd(awayTmId, ssntYr, 0, 1, 0, awayScore, homeScore);
+            } else if (awayScore > homeScore) {
+                updateStnd(homeTmId, ssntYr, 0, 1, 0, homeScore, awayScore);
+                updateStnd(awayTmId, ssntYr, 1, 0, 0, awayScore, homeScore);
+            } else {
+                updateStnd(homeTmId, ssntYr, 0, 0, 1, homeScore, awayScore);
+                updateStnd(awayTmId, ssntYr, 0, 0, 1, awayScore, homeScore);
+            }
+        }
+        recalcRank(ssntYr);
+    }
+
+    private void updateStnd(long tmId, int ssntYr, int w, int l, int t, int rs, int ra) {
+        jdbcTemplate.update(
+                "UPDATE STND SET " +
+                "  W=W+?, L=L+?, T=T+?, RS=RS+?, RA=RA+?, RUN_DIFF=RUN_DIFF+(? - ?), " +
+                "  PCT=CASE WHEN (W+L) > 0 THEN ROUND(W/(W+L),4) ELSE NULL END " +
+                "WHERE TM_ID=? AND SSNT_YR=?",
+                w, l, t, rs, ra, rs, ra, tmId, ssntYr);
+    }
+
+    private void recalcRank(int ssntYr) {
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT TM_ID, W, L FROM STND WHERE SSNT_YR=? ORDER BY PCT DESC, W DESC", ssntYr);
+        if (rows.isEmpty()) return;
+        int leaderW = toInt(rows.get(0).get("W"));
+        int leaderL = toInt(rows.get(0).get("L"));
+        for (int i = 0; i < rows.size(); i++) {
+            long tmId = toLong(rows.get(i).get("TM_ID"));
+            int w = toInt(rows.get(i).get("W"));
+            int l = toInt(rows.get(i).get("L"));
+            double gb = ((leaderW - w) + (l - leaderL)) / 2.0;
+            jdbcTemplate.update("UPDATE STND SET STND_RNK=?, GB=? WHERE TM_ID=? AND SSNT_YR=?",
+                    i + 1, gb == 0 ? null : gb, tmId, ssntYr);
+        }
+    }
+
+    // ----- Step 5: 피로도/컨디션 -----
+
+    private void applyFatigueCondition(List<Map<String, Object>> results, int ssntYr) {
+        Random rnd = new Random();
+        for (Map<String, Object> r : results) {
+            applyTeamFatigue(toLong(r.get("HOME_TM_ID")), ssntYr, rnd);
+            applyTeamFatigue(toLong(r.get("AWAY_TM_ID")), ssntYr, rnd);
+        }
+    }
+
+    private void applyTeamFatigue(long tmId, int ssntYr, Random rnd) {
+        List<Map<String, Object>> lineupRows = mapper.findLineup(tmId);
+        for (Map<String, Object> row : lineupRows) {
+            long plrId = toLong(row.get("PLR_ID"));
+            String reprPosnCd = (String) row.get("REPR_POSN_CD");
+            int fatgDelta = "10".equals(reprPosnCd) ? 12 : 5;
+            int condDelta = rnd.nextInt(8) - 3; // -3 ~ +4
+            upsertFatigCond(plrId, ssntYr, fatgDelta, condDelta);
+        }
+    }
+
+    private void upsertFatigCond(long plrId, int ssntYr, int fatgDelta, int condDelta) {
+        jdbcTemplate.update(
+                "INSERT INTO PLR_FATG_COND (PLR_ID, SSNT_YR, FATG, COND) VALUES (?,?,30,70) " +
+                "ON DUPLICATE KEY UPDATE " +
+                "  FATG = LEAST(100, GREATEST(0, FATG + ?)), " +
+                "  COND = LEAST(100, GREATEST(1, COND + ?))",
+                plrId, ssntYr, fatgDelta, condDelta);
+    }
+
+    // ----- Step 6: 재정 반영 -----
+
+    private void applyFinance(List<Map<String, Object>> results, int ssntYr) {
+        for (Map<String, Object> r : results) {
+            long homeTmId = toLong(r.get("HOME_TM_ID"));
+            Map<String, Object> mkt = mapper.findTeamMarketRow(homeTmId, ssntYr);
+            if (mkt == null) continue;
+            int avgAtnd = toInt(mkt.get("AVG_ATND_CNT"));
+            int ppltRtg = toInt(mkt.get("PPLT_RTG"));
+            double ppltMult = 1.0 + (ppltRtg - 50.0) / 100.0;
+            long tcktRev = (long) (avgAtnd * 2 * ppltMult); // 2만원/명
+            jdbcTemplate.update(
+                    "INSERT INTO TM_FNC_SSNT (TM_ID, SSNT_YR, TCKT_REV) VALUES (?,?,?) " +
+                    "ON DUPLICATE KEY UPDATE TCKT_REV=COALESCE(TCKT_REV,0)+VALUES(TCKT_REV), " +
+                    "CUR_CASH=COALESCE(CUR_CASH,0)+VALUES(TCKT_REV)",
+                    homeTmId, ssntYr, tcktRev);
+        }
+
+        // 방송국 승리 수당 (유저 팀이 이긴 경기에만)
+        Long userTmId = mapper.findUserTmId();
+        if (userTmId == null) return;
+        Map<String, Object> bonusRow = mapper.findBrdcstWinBonus();
+        if (bonusRow == null) return;
+        long winBonus = toLong(bonusRow.get("WIN_BONUS"));
+        if (winBonus <= 0) return;
+
+        for (Map<String, Object> r : results) {
+            Long winTmId = (Long) r.get("WIN_TM_ID");
+            if (winTmId == null || !winTmId.equals(userTmId)) continue;
+            jdbcTemplate.update(
+                    "INSERT INTO TM_FNC_SSNT (TM_ID, SSNT_YR, BCST_REV) VALUES (?,?,?) " +
+                    "ON DUPLICATE KEY UPDATE BCST_REV=COALESCE(BCST_REV,0)+VALUES(BCST_REV), " +
+                    "CUR_CASH=COALESCE(CUR_CASH,0)+VALUES(BCST_REV)",
+                    userTmId, ssntYr, winBonus);
+            log.debug("방송국 승리 수당: {}만원 지급", winBonus);
+        }
+    }
+
+    // ----- Step 7: 이벤트 생성 -----
+
+    private void generateGameEvents(List<Map<String, Object>> results, int ssntYr, String gameDt) {
+        Long userTmId = mapper.findUserTmId();
+        if (userTmId == null) return;
+
+        List<Map<String, Object>> events = new ArrayList<>();
+        for (Map<String, Object> r : results) {
+            long homeTmId = toLong(r.get("HOME_TM_ID"));
+            long awayTmId = toLong(r.get("AWAY_TM_ID"));
+            if (!userTmId.equals(homeTmId) && !userTmId.equals(awayTmId)) continue;
+
+            int homeScore = toInt(r.get("HOME_SCORE"));
+            int awayScore = toInt(r.get("AWAY_SCORE"));
+            String homeNm = (String) r.get("HOME_TM_KR_NM");
+            String awayNm = (String) r.get("AWAY_TM_KR_NM");
+            Long winTmId = (Long) r.get("WIN_TM_ID");
+
+            String ttlt = homeNm + " " + homeScore + " : " + awayScore + " " + awayNm;
+            String cnts;
+            if (winTmId == null) {
+                cnts = String.format("[무승부] %s %d : %d %s — 승부를 가리지 못했습니다.", homeNm, homeScore, awayScore, awayNm);
+            } else if (winTmId.equals(userTmId)) {
+                cnts = String.format("[승리] %s %d : %d %s — 승리했습니다!", homeNm, homeScore, awayScore, awayNm);
+            } else {
+                cnts = String.format("[패배] %s %d : %d %s — 아쉽게 패했습니다.", homeNm, homeScore, awayScore, awayNm);
+            }
+
+            Map<String, Object> ev = new HashMap<>();
+            ev.put("ssntYr", ssntYr);
+            ev.put("evntDt", gameDt);
+            ev.put("tmId", userTmId);
+            ev.put("plrId", null);
+            ev.put("evntTypeCd", "NEWS");
+            ev.put("evntTtlt", ttlt);
+            ev.put("evntCnts", cnts);
+            events.add(ev);
+        }
+
+        // 업적/마일스톤 달성 이벤트 감지
+        checkAndGenerateAchievements(userTmId, ssntYr, gameDt, events);
+
+        if (!events.isEmpty()) mapper.insertEvntBatch(events);
+    }
+
+    /** 유저 팀 선수의 시즌 기록 마일스톤 달성 여부 확인 및 이벤트 생성 */
+    private void checkAndGenerateAchievements(long userTmId, int ssntYr, String gameDt,
+                                               List<Map<String, Object>> events) {
+        // 타자 마일스톤: H(100단위), HR/2B/3B/SB(10단위)
+        List<Map<String, Object>> batrStats = jdbcTemplate.queryForList(
+                "SELECT p.PLR_ID, p.PLR_NM, r.H, r.HR, r.DOBL AS DOBL2, r.TRPL, r.SB " +
+                "FROM PLR_BATR_SSNT_REC r JOIN PLR p ON p.PLR_ID = r.PLR_ID " +
+                "WHERE r.SSNT_YR = ? AND p.TM_ID = ?",
+                ssntYr, userTmId);
+
+        for (Map<String, Object> stat : batrStats) {
+            String plrNm = (String) stat.get("PLR_NM");
+            long plrId = toLong(stat.get("PLR_ID"));
+            checkMilestone(events, ssntYr, gameDt, userTmId, plrId, plrNm,
+                           toInt(stat.get("H")), 100, "안타");
+            checkMilestone(events, ssntYr, gameDt, userTmId, plrId, plrNm,
+                           toInt(stat.get("HR")), 10, "홈런");
+            checkMilestone(events, ssntYr, gameDt, userTmId, plrId, plrNm,
+                           toInt(stat.get("DOBL2")), 10, "2루타");
+            checkMilestone(events, ssntYr, gameDt, userTmId, plrId, plrNm,
+                           toInt(stat.get("TRPL")), 10, "3루타");
+            checkMilestone(events, ssntYr, gameDt, userTmId, plrId, plrNm,
+                           toInt(stat.get("SB")), 10, "도루");
+        }
+
+        // 투수 마일스톤: K(100단위), W/SV/HLD(10단위)
+        List<Map<String, Object>> ptchStats = jdbcTemplate.queryForList(
+                "SELECT p.PLR_ID, p.PLR_NM, r.SO, r.W, r.SV, r.HLD " +
+                "FROM PLR_PTCH_SSNT_REC r JOIN PLR p ON p.PLR_ID = r.PLR_ID " +
+                "WHERE r.SSNT_YR = ? AND p.TM_ID = ?",
+                ssntYr, userTmId);
+
+        for (Map<String, Object> stat : ptchStats) {
+            String plrNm = (String) stat.get("PLR_NM");
+            long plrId = toLong(stat.get("PLR_ID"));
+            checkMilestone(events, ssntYr, gameDt, userTmId, plrId, plrNm,
+                           toInt(stat.get("SO")), 100, "탈삼진");
+            checkMilestone(events, ssntYr, gameDt, userTmId, plrId, plrNm,
+                           toInt(stat.get("W")), 10, "승리");
+            checkMilestone(events, ssntYr, gameDt, userTmId, plrId, plrNm,
+                           toInt(stat.get("SV")), 10, "세이브");
+            checkMilestone(events, ssntYr, gameDt, userTmId, plrId, plrNm,
+                           toInt(stat.get("HLD")), 10, "홀드");
+        }
+    }
+
+    /** 마일스톤 달성 시 이벤트 추가 */
+    private void checkMilestone(List<Map<String, Object>> events, int ssntYr, String gameDt,
+                                 long tmId, long plrId, String plrNm,
+                                 int current, int step, String statName) {
+        if (current > 0 && current % step == 0) {
+            Map<String, Object> ev = new HashMap<>();
+            ev.put("ssntYr", ssntYr);
+            ev.put("evntDt", gameDt);
+            ev.put("tmId", tmId);
+            ev.put("plrId", plrId);
+            ev.put("evntTypeCd", "REC");
+            ev.put("evntTtlt", plrNm + " " + current + "번째 " + statName + " 달성");
+            ev.put("evntCnts", plrNm + "이(가) 시즌 " + current + " " + statName + "을(를) 달성했습니다!");
+            events.add(ev);
+        }
+    }
+
+    // ----- Step 8: 경기 완료 확정 -----
+
+    private void finalizeGames(List<Map<String, Object>> results) {
+        // GAME_STTS_CD는 Step 2에서 이미 '03'으로 업데이트됨
+        // 추가 후처리가 필요하면 여기에 구현
+        log.info("경기 처리 완료: {}건", results.size());
+    }
+
+    // ----- SSE 헬퍼 -----
+
+    private void emit(SseEmitter emitter, int step, int ssntYr, String gameDt,
+                      String message, boolean done) throws Exception {
+        GameResultProgressDto dto = GameResultProgressDto.builder()
+                .step(step).total(TOTAL_STEPS).message(message)
+                .done(done).ssntYr(ssntYr).gameDt(gameDt)
+                .build();
+        emitter.send(SseEmitter.event().data(objectMapper.writeValueAsString(dto)));
+    }
+
+    // ----- 유틸 -----
+
+    /** 이항 분포 난수 (n번 시행에서 확률 p로 성공 횟수) */
+    private int binomialCount(int n, double p, Random rnd) {
+        int count = 0;
+        for (int i = 0; i < n; i++) {
+            if (rnd.nextDouble() < p) count++;
+        }
+        return count;
+    }
+
+    private int toInt(Object v) {
+        if (v == null) return 0;
+        if (v instanceof Number n) return n.intValue();
+        try { return Integer.parseInt(v.toString()); } catch (Exception e) { return 0; }
+    }
+
+    private long toLong(Object v) {
+        if (v == null) return 0L;
+        if (v instanceof Number n) return n.longValue();
+        try { return Long.parseLong(v.toString()); } catch (Exception e) { return 0L; }
+    }
+}

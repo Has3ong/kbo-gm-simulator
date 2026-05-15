@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kbo.gm.domain.team.mapper.TmMapper">
+
+    <select id="findAll" resultType="com.kbo.gm.domain.team.dao.TmDao">
+        SELECT T.TM_ID, T.TM_KR_NM, T.TM_ENG_NM, T.TM_SHRT_KR_NM, T.TM_SHRT_ENG_NM,
+               T.TM_ESTBLSH_DT, T.CITY_CD,
+               C.CD_NM   AS CITY_NM,
+               T.STDM_ID, S.STDM_KR_NM,
+               EC.CD_DESC AS EMBLEM_CD,
+               CC.CD_DESC AS CI_CLR
+        FROM TM T
+                 LEFT JOIN CMN_CD C  ON C.CD_ID  = 'CITY'      AND C.CD_VAL  = T.CITY_CD
+                 LEFT JOIN STDM S    ON S.STDM_ID = T.STDM_ID
+                 LEFT JOIN CMN_CD EC ON EC.CD_ID  = 'TM_EMBLEM' AND EC.CD_VAL = T.TM_SHRT_ENG_NM
+                 LEFT JOIN CMN_CD CC ON CC.CD_ID  = 'TM_CI_CLR' AND CC.CD_VAL = T.TM_SHRT_ENG_NM
+        ORDER BY T.TM_ID
+    </select>
+
+    <select id="findById" resultType="com.kbo.gm.domain.team.dao.TmDao">
+        SELECT T.TM_ID, T.TM_KR_NM, T.TM_ENG_NM, T.TM_SHRT_KR_NM, T.TM_SHRT_ENG_NM,
+               T.TM_ESTBLSH_DT, T.CITY_CD,
+               C.CD_NM   AS CITY_NM,
+               T.STDM_ID, S.STDM_KR_NM,
+               EC.CD_DESC AS EMBLEM_CD,
+               CC.CD_DESC AS CI_CLR
+        FROM TM T
+                 LEFT JOIN CMN_CD C  ON C.CD_ID  = 'CITY'      AND C.CD_VAL  = T.CITY_CD
+                 LEFT JOIN STDM S    ON S.STDM_ID = T.STDM_ID
+                 LEFT JOIN CMN_CD EC ON EC.CD_ID  = 'TM_EMBLEM' AND EC.CD_VAL = T.TM_SHRT_ENG_NM
+                 LEFT JOIN CMN_CD CC ON CC.CD_ID  = 'TM_CI_CLR' AND CC.CD_VAL = T.TM_SHRT_ENG_NM
+        WHERE T.TM_ID = #{tmId}
+    </select>
+
+    <select id="findFinance" resultType="com.kbo.gm.domain.team.dao.TmFinanceDao">
+        SELECT TM_ID, SSNT_YR, STR_CASH, CUR_CASH, TOT_BDGT,
+               PLR_SAL_BDGT, COACH_BDGT, DVLP_BDGT, MKT_BDGT, FCLTY_BDGT,
+               CUR_PLR_SAL_COST, TCKT_REV, SSNT_TCKT_REV, MRCH_REV, SPNS_REV,
+               BCST_REV, PSTSSNT_REV, PLR_SAL_COST, STFF_COST, OPR_COST, OWN_SUPP, DEBT
+        FROM TM_FNC_SSNT
+        WHERE TM_ID = #{tmId}
+          AND SSNT_YR = #{ssntYr}
+    </select>
+
+    <select id="findFacilities" resultType="com.kbo.gm.domain.team.dao.TmFacilityDao">
+        SELECT F.TM_ID, F.FCLTY_TYPE_CD, C.CD_NM AS FCLTY_TYPE_NM, F.FCLTY_LVL
+        FROM TM_FCLTY F
+                 LEFT JOIN CMN_CD C ON C.CD_ID = 'FCLTY_TYPE' AND C.CD_VAL = F.FCLTY_TYPE_CD
+        WHERE F.TM_ID = #{tmId}
+        ORDER BY F.FCLTY_TYPE_CD
+    </select>
+
+    <select id="findFinanceHistory" resultType="com.kbo.gm.domain.team.dao.TmFinanceDao">
+        SELECT TM_ID, SSNT_YR, STR_CASH, CUR_CASH, TOT_BDGT,
+               PLR_SAL_BDGT, COACH_BDGT, DVLP_BDGT, MKT_BDGT, FCLTY_BDGT,
+               CUR_PLR_SAL_COST, TCKT_REV, SSNT_TCKT_REV, MRCH_REV, SPNS_REV,
+               BCST_REV, PSTSSNT_REV, PLR_SAL_COST, STFF_COST, OPR_COST, OWN_SUPP, DEBT
+        FROM TM_FNC_SSNT
+        WHERE TM_ID = #{tmId}
+        ORDER BY SSNT_YR DESC
+    </select>
+
+    <select id="findFacilityUpgrades" resultType="com.kbo.gm.domain.team.dao.TmFacilityUpgrDao">
+        SELECT U.UPGR_ID, U.TM_ID, U.FCLTY_TYPE_CD,
+               C.CD_NM AS FCLTY_TYPE_NM,
+               U.FROM_LVL, U.TO_LVL, U.UPGR_COST,
+               U.UPGR_BGNG_DT, U.UPGR_END_DT, U.UPGR_STTS_CD
+        FROM TM_FCLTY_UPGR U
+                 LEFT JOIN CMN_CD C ON C.CD_ID = 'FCLTY_TYPE' AND C.CD_VAL = U.FCLTY_TYPE_CD
+        WHERE U.TM_ID = #{tmId}
+        ORDER BY U.UPGR_BGNG_DT DESC
+    </select>
+
+    <select id="findMarket" resultType="com.kbo.gm.domain.team.dao.TmMarketDao">
+        SELECT TM_ID, SSNT_YR, MKT_SZ, PPLT_RTG, FAN_LYLTY, FAN_EXP,
+               REG_INTRST, NATNL_PPLT, MRCH_PWR, AVG_ATND_CNT, SSNT_TCKT_HLDR
+        FROM TM_MKT_SSNT
+        WHERE TM_ID = #{tmId}
+          AND SSNT_YR = #{ssntYr}
+    </select>
+
+    <!-- ===== 시설 업그레이드 ===== -->
+
+    <select id="findFcltyUpgrCosts" resultType="com.kbo.gm.domain.team.dao.FcltyUpgrCostCfgDao">
+        SELECT C.CD_VAL AS FCLTY_TYPE_CD,
+               C.CD_NM  AS FCLTY_TYPE_NM,
+               C.CD_DESC AS FCLTY_DESC,
+               F.FCLTY_LVL AS FROM_LVL,
+               CFG.TO_LVL,
+               CFG.UPGR_COST,
+               CFG.UPGR_DAYS
+        FROM CMN_CD C
+                 JOIN TM_FCLTY F   ON F.FCLTY_TYPE_CD = C.CD_VAL AND F.TM_ID = #{tmId}
+                 LEFT JOIN FCLTY_UPGR_COST_CFG CFG
+                           ON CFG.FCLTY_TYPE_CD = C.CD_VAL AND CFG.FROM_LVL = F.FCLTY_LVL
+        WHERE C.CD_ID = 'FCLTY_TYPE'
+        ORDER BY C.CD_VAL
+    </select>
+
+    <select id="countOngoingUpgr" resultType="int">
+        SELECT COUNT(*)
+        FROM TM_FCLTY_UPGR
+        WHERE TM_ID = #{tmId}
+          AND FCLTY_TYPE_CD = #{fcltyTypeCd}
+          AND UPGR_STTS_CD = 'PROG'
+    </select>
+
+    <update id="updateFcltyLvl">
+        UPDATE TM_FCLTY
+           SET FCLTY_LVL = #{newLvl}
+         WHERE TM_ID = #{tmId}
+           AND FCLTY_TYPE_CD = #{fcltyTypeCd}
+    </update>
+
+    <insert id="insertFcltyUpgr">
+        INSERT INTO TM_FCLTY_UPGR
+            (TM_ID, FCLTY_TYPE_CD, FROM_LVL, TO_LVL, UPGR_COST, UPGR_BGNG_DT, UPGR_END_DT, UPGR_STTS_CD)
+        VALUES
+            (#{tmId}, #{fcltyTypeCd}, #{fromLvl}, #{toLvl}, #{upgrCost}, #{bgngDt}, #{endDt}, 'CMPL')
+    </insert>
+
+    <!-- ===== 경기장 조회 ===== -->
+
+    <select id="findStadium" resultType="com.kbo.gm.domain.team.dao.StdmDao">
+        SELECT S.STDM_ID, S.STDM_KR_NM, S.STDM_ENG_NM, S.STDM_LOC,
+               S.STDM_ESTBLSH_DT, S.STDM_SEAT_CNT,
+               S.LF_DIST, S.LCF_DIST, S.CF_DIST, S.RCF_DIST, S.RF_DIST,
+               S.TURF_TYPE_CD, C.CD_NM AS TURF_TYPE_NM
+        FROM TM T
+                 JOIN STDM S ON S.STDM_ID = T.STDM_ID
+                 LEFT JOIN CMN_CD C ON C.CD_ID = 'TURF_TYPE' AND C.CD_VAL = S.TURF_TYPE_CD
+        WHERE T.TM_ID = #{tmId}
+    </select>
+
+    <select id="findStdmExpnHistory" resultType="com.kbo.gm.domain.team.dao.StdmExpnDao">
+        SELECT E.EXPN_ID, E.STDM_ID, E.TM_ID,
+               E.BFR_SEAT_CNT, E.AFT_SEAT_CNT, E.EXPN_COST,
+               E.EXPN_BGNG_DT, E.EXPN_END_DT, E.EXPN_STTS_CD,
+               C.CD_NM AS EXPN_STTS_NM
+        FROM STDM_EXPN E
+                 LEFT JOIN CMN_CD C ON C.CD_ID = 'STDM_EXPN_STTS' AND C.CD_VAL = E.EXPN_STTS_CD
+        WHERE E.TM_ID = #{tmId}
+        ORDER BY E.EXPN_BGNG_DT DESC
+    </select>
+
+    <select id="findStdmExpnCosts" resultType="com.kbo.gm.domain.team.dao.StdmExpnCostCfgDao">
+        SELECT EXPN_STEP, ADD_SEAT_CNT, EXPN_COST, EXPN_DAYS, EXPN_DESC
+        FROM STDM_EXPN_COST_CFG
+        ORDER BY EXPN_STEP
+    </select>
+
+    <select id="countOngoingExpn" resultType="int">
+        SELECT COUNT(*)
+        FROM STDM_EXPN
+        WHERE TM_ID = #{tmId}
+          AND EXPN_STTS_CD = 'PROG'
+    </select>
+
+    <update id="updateStdmSeatCnt">
+        UPDATE STDM
+           SET STDM_SEAT_CNT = #{seatCnt}
+         WHERE STDM_ID = #{stdmId}
+    </update>
+
+    <insert id="insertStdmExpn">
+        INSERT INTO STDM_EXPN
+            (STDM_ID, TM_ID, BFR_SEAT_CNT, AFT_SEAT_CNT, EXPN_COST,
+             EXPN_BGNG_DT, EXPN_END_DT, EXPN_STTS_CD)
+        VALUES
+            (#{stdmId}, #{tmId}, #{bfrSeatCnt}, #{aftSeatCnt}, #{expnCost},
+             #{bgngDt}, #{endDt}, 'CMPL')
+    </insert>
+
+</mapper>

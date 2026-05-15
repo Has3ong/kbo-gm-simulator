@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kbo.gm.domain.season.mapper.SsntMapper">
+
+    <select id="findAll" resultType="com.kbo.gm.domain.season.dao.SsntDao">
+        SELECT S.SSNT_YR, S.SSNT_STTS_CD, C.CD_NM AS SSNT_STTS_NM,
+               S.SSNT_BGNG_DT, S.REG_SSNT_BGNG_DT, S.REG_SSNT_END_DT,
+               S.PSTSSNT_BGNG_DT, S.PSTSSNT_END_DT, S.SSNT_END_DT, S.CUR_DT
+        FROM SSNT S
+                 LEFT JOIN CMN_CD C ON C.CD_ID = 'SSNT_STTS' AND C.CD_VAL = S.SSNT_STTS_CD
+        ORDER BY S.SSNT_YR DESC
+    </select>
+
+    <select id="findByYear" resultType="com.kbo.gm.domain.season.dao.SsntDao">
+        SELECT S.SSNT_YR, S.SSNT_STTS_CD, C.CD_NM AS SSNT_STTS_NM,
+               S.SSNT_BGNG_DT, S.REG_SSNT_BGNG_DT, S.REG_SSNT_END_DT,
+               S.PSTSSNT_BGNG_DT, S.PSTSSNT_END_DT, S.SSNT_END_DT, S.CUR_DT
+        FROM SSNT S
+                 LEFT JOIN CMN_CD C ON C.CD_ID = 'SSNT_STTS' AND C.CD_VAL = S.SSNT_STTS_CD
+        WHERE S.SSNT_YR = #{ssntYr}
+    </select>
+
+    <select id="findStandings" resultType="com.kbo.gm.domain.season.dao.StndDao">
+        SELECT ST.TM_ID, T.TM_KR_NM, T.TM_SHRT_KR_NM, ST.SSNT_YR,
+               ST.W, ST.L, ST.T, ST.PCT, ST.GB,
+               ST.HOME_W, ST.HOME_L, ST.AWAY_W, ST.AWAY_L,
+               ST.RS, ST.RA, ST.RUN_DIFF,
+               ST.STRK_TYPE, ST.STRK_CNT,
+               ST.L10_W, ST.L10_L, ST.L10_T,
+               ST.STND_RNK, ST.TM_MORL, ST.FAN_STSFCTN, ST.OWN_STSFCTN,
+               ST.PSTSSNT_STTS
+        FROM STND ST
+                 JOIN TM T ON T.TM_ID = ST.TM_ID
+        WHERE ST.SSNT_YR = #{ssntYr}
+        ORDER BY ST.STND_RNK
+    </select>
+
+    <select id="findStandingsByTeam" resultType="com.kbo.gm.domain.season.dao.StndDao">
+        SELECT ST.TM_ID, T.TM_KR_NM, T.TM_SHRT_KR_NM, ST.SSNT_YR,
+               ST.W, ST.L, ST.T, ST.PCT, ST.GB,
+               ST.HOME_W, ST.HOME_L, ST.AWAY_W, ST.AWAY_L,
+               ST.RS, ST.RA, ST.RUN_DIFF,
+               ST.STRK_TYPE, ST.STRK_CNT,
+               ST.L10_W, ST.L10_L, ST.L10_T,
+               ST.STND_RNK, ST.TM_MORL, ST.FAN_STSFCTN, ST.OWN_STSFCTN,
+               ST.PSTSSNT_STTS
+        FROM STND ST
+                 JOIN TM T ON T.TM_ID = ST.TM_ID
+        WHERE ST.TM_ID = #{tmId}
+        ORDER BY ST.SSNT_YR DESC
+    </select>
+
+    <select id="findEvents" resultType="com.kbo.gm.domain.season.dao.SsntEvntDao">
+        SELECT E.EVNT_ID, E.SSNT_YR, E.EVNT_DT,
+               E.TM_ID, T.TM_KR_NM,
+               E.PLR_ID, P.PLR_NM,
+               E.EVNT_TYPE_CD, C.CD_NM AS EVNT_TYPE_NM,
+               E.EVNT_TTLT, E.EVNT_CNTS, E.RD_YN
+        FROM SSNT_EVNT E
+                 LEFT JOIN TM T ON T.TM_ID = E.TM_ID
+                 LEFT JOIN PLR P ON P.PLR_ID = E.PLR_ID
+                 LEFT JOIN CMN_CD C ON C.CD_ID = 'EVNT_TYPE' AND C.CD_VAL = E.EVNT_TYPE_CD
+        WHERE E.SSNT_YR = #{ssntYr}
+        <if test="tmId != null">AND E.TM_ID = #{tmId}</if>
+        <if test="evntTypeCd != null and evntTypeCd != ''">AND E.EVNT_TYPE_CD = #{evntTypeCd}</if>
+        ORDER BY E.EVNT_DT DESC, E.EVNT_ID DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="countEvents" resultType="java.lang.Integer">
+        SELECT COUNT(*)
+        FROM SSNT_EVNT E
+        WHERE E.SSNT_YR = #{ssntYr}
+        <if test="tmId != null">AND E.TM_ID = #{tmId}</if>
+        <if test="evntTypeCd != null and evntTypeCd != ''">AND E.EVNT_TYPE_CD = #{evntTypeCd}</if>
+    </select>
+
+    <update id="markEventRead">
+        UPDATE SSNT_EVNT
+        SET RD_YN = '1'
+        WHERE EVNT_ID = #{evntId}
+    </update>
+
+    <update id="advanceDate">
+        UPDATE SSNT
+        SET CUR_DT = DATE_ADD(CUR_DT, INTERVAL 1 DAY)
+        WHERE SSNT_YR = #{ssntYr}
+    </update>
+
+    <update id="updateSsntStatus">
+        UPDATE SSNT
+        SET SSNT_STTS_CD = #{sttsCd}
+        WHERE SSNT_YR = #{ssntYr}
+    </update>
+
+    <select id="countIncompleteGamesOnDate" resultType="java.lang.Integer">
+        SELECT COUNT(*)
+        FROM GAME
+        WHERE SSNT_YR    = #{ssntYr}
+          AND GAME_DT    = #{curDt}
+          AND GAME_STTS_CD NOT IN ('03', '05', '06')
+    </select>
+
+    <select id="findCfgVal" resultType="java.lang.String">
+        SELECT CFG_VAL
+        FROM GAME_CFG
+        WHERE CFG_KEY = #{cfgKey}
+    </select>
+
+</mapper>

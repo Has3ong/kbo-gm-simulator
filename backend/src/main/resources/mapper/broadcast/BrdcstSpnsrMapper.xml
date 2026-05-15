@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kbo.gm.domain.broadcast.mapper.BrdcstSpnsrMapper">
+
+    <!-- ===== 방송국 스폰서 목록 ===== -->
+    <select id="findAll" resultType="com.kbo.gm.domain.broadcast.dao.BrdcstSpnsrDao">
+        SELECT BRDCST_CD, BRDCST_NM, CNTRCT_FEE, WIN_BONUS, POST_BONUS, KS_BONUS
+        FROM BRDCST_SPNSR
+        ORDER BY CNTRCT_FEE DESC
+    </select>
+
+    <select id="findByCode" resultType="com.kbo.gm.domain.broadcast.dao.BrdcstSpnsrDao">
+        SELECT BRDCST_CD, BRDCST_NM, CNTRCT_FEE, WIN_BONUS, POST_BONUS, KS_BONUS
+        FROM BRDCST_SPNSR
+        WHERE BRDCST_CD = #{brdcstCd}
+    </select>
+
+    <!-- ===== 선택된 방송국 코드 조회 (GAME_CFG) ===== -->
+    <select id="findSelectedCode" resultType="String">
+        SELECT CFG_VAL
+        FROM GAME_CFG
+        WHERE CFG_KEY = 'BRDCST_SPNSR'
+        LIMIT 1
+    </select>
+
+    <!-- ===== 방송국 선택 저장 ===== -->
+    <insert id="upsertSelection">
+        INSERT INTO GAME_CFG (CFG_KEY, CFG_VAL, UPD_DT)
+        VALUES ('BRDCST_SPNSR', #{brdcstCd}, NOW())
+        ON DUPLICATE KEY UPDATE CFG_VAL = #{brdcstCd}, UPD_DT = NOW()
+    </insert>
+
+    <!-- ===== 방송국 선택 삭제 (새 게임 시작 시) ===== -->
+    <delete id="deleteSelection">
+        DELETE FROM GAME_CFG WHERE CFG_KEY = 'BRDCST_SPNSR'
+    </delete>
+
+    <!-- ===== 유저 팀 ID 조회 ===== -->
+    <select id="findUserTmId" resultType="java.lang.Long">
+        SELECT CFG_VAL FROM GAME_CFG WHERE CFG_KEY = 'USER_TM_ID' LIMIT 1
+    </select>
+
+    <!-- ===== 현재 진행 중인 시즌 연도 조회 ===== -->
+    <select id="findCurrentSsntYr" resultType="java.lang.Integer">
+        SELECT SSNT_YR FROM SSNT ORDER BY SSNT_YR DESC LIMIT 1
+    </select>
+
+    <!-- ===== 현재 게임 날짜 조회 ===== -->
+    <select id="findCurrentDate" resultType="String">
+        SELECT DATE_FORMAT(CUR_DT, '%Y-%m-%d') FROM SSNT ORDER BY SSNT_YR DESC LIMIT 1
+    </select>
+
+    <!-- ===== 방송국 계약 이벤트 삽입 ===== -->
+    <insert id="insertBrdcstEvnt" parameterType="map">
+        INSERT INTO SSNT_EVNT (SSNT_YR, EVNT_DT, EVNT_TYPE_CD, TM_ID, EVNT_TTLT, EVNT_CNTS, RD_YN)
+        VALUES (#{evnt.ssntYr}, #{evnt.evntDt}, #{evnt.evntTypeCd}, #{evnt.tmId}, #{evnt.ttlt}, #{evnt.cnts}, '0')
+    </insert>
+
+    <!-- ===== 팀-연도-방송국 저장 (TM_BRDCST) ===== -->
+    <insert id="insertTmBrdcst">
+        INSERT INTO TM_BRDCST (TM_ID, SSNT_YR, BRDCST_CD, REG_DT)
+        VALUES (#{tmId}, #{ssntYr}, #{brdcstCd}, NOW())
+        ON DUPLICATE KEY UPDATE BRDCST_CD = VALUES(BRDCST_CD)
+    </insert>
+
+</mapper>

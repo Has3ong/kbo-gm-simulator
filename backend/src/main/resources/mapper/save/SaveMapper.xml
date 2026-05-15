@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kbo.gm.domain.save.mapper.SaveMapper">
+
+    <!-- 경기 기록 -->
+    <delete id="deletePlrBatrGameRec">
+        DELETE FROM PLR_BATR_GAME_REC
+         WHERE GAME_ID IN (SELECT GAME_ID FROM GAME WHERE SSNT_YR = #{ssntYr})
+    </delete>
+
+    <delete id="deletePlrPtchGameRec">
+        DELETE FROM PLR_PTCH_GAME_REC
+         WHERE GAME_ID IN (SELECT GAME_ID FROM GAME WHERE SSNT_YR = #{ssntYr})
+    </delete>
+
+    <delete id="deleteGame">
+        DELETE FROM GAME WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <!-- 선수 기록 -->
+    <delete id="deletePlrBatrMonRec">
+        DELETE FROM PLR_BATR_MON_REC WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <delete id="deletePlrBatrSsntRec">
+        DELETE FROM PLR_BATR_SSNT_REC WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <delete id="deletePlrBatrTmSsntRec">
+        DELETE FROM PLR_BATR_TM_SSNT_REC WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <delete id="deletePlrPtchMonRec">
+        DELETE FROM PLR_PTCH_MON_REC WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <delete id="deletePlrPtchSsntRec">
+        DELETE FROM PLR_PTCH_SSNT_REC WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <delete id="deletePlrPtchTmSsntRec">
+        DELETE FROM PLR_PTCH_TM_SSNT_REC WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <!-- 순위 -->
+    <delete id="deleteStnd">
+        DELETE FROM STND WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <!-- 선수 시즌 데이터 -->
+    <delete id="deletePlrGrwthLog">
+        DELETE FROM PLR_GRWTH_LOG WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <delete id="deletePlrFatgCond">
+        DELETE FROM PLR_FATG_COND WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <delete id="deletePlrAnslSalHist">
+        DELETE FROM PLR_ANSL_SAL_HIST WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <delete id="deletePlrPosnSsnt">
+        DELETE FROM PLR_POSN_SSNT WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <delete id="deletePlrAbltMon">
+        DELETE FROM PLR_ABLT_MON WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <delete id="deletePlrAbltSsnt">
+        DELETE FROM PLR_ABLT_SSNT WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <delete id="deletePlrEntyHist">
+        DELETE FROM PLR_ENTY_HIST WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <delete id="deletePlrEnty">
+        DELETE FROM PLR_ENTY WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <delete id="deletePlrTmCntrct">
+        DELETE FROM PLR_TM_CNTRCT WHERE YEAR(FA_CNTRCT_BGNG_DT) = #{ssntYr}
+    </delete>
+
+    <!-- 팀 재정/마케팅/기록 -->
+    <delete id="deleteTmFncSsnt">
+        DELETE FROM TM_FNC_SSNT WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <delete id="deleteTmMktSsnt">
+        DELETE FROM TM_MKT_SSNT WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <delete id="deleteTmSsntRec">
+        DELETE FROM TM_SSNT_REC WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <delete id="deleteTmMonRec">
+        DELETE FROM TM_MON_REC WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <delete id="deleteTmLineup">
+        DELETE FROM TM_LINEUP WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <delete id="deleteTmRotation">
+        DELETE FROM TM_ROTATION WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <delete id="deleteTmBullpen">
+        DELETE FROM TM_BULLPEN WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <!-- 드래프트 -->
+    <delete id="deleteDrftBoard">
+        DELETE FROM DRFT_BOARD
+         WHERE DRFT_ID IN (SELECT DRFT_ID FROM DRFT WHERE SSNT_YR = #{ssntYr})
+    </delete>
+
+    <delete id="deleteDrftScutRpt">
+        DELETE FROM DRFT_SCUT_RPT
+         WHERE DRFT_PLR_ID IN (
+               SELECT DRFT_PLR_ID FROM DRFT_PLR
+                WHERE DRFT_ID IN (SELECT DRFT_ID FROM DRFT WHERE SSNT_YR = #{ssntYr})
+         )
+    </delete>
+
+    <delete id="deleteDrftOrd">
+        DELETE FROM DRFT_ORD
+         WHERE DRFT_ID IN (SELECT DRFT_ID FROM DRFT WHERE SSNT_YR = #{ssntYr})
+    </delete>
+
+    <delete id="deleteDrftPlr">
+        DELETE FROM DRFT_PLR
+         WHERE DRFT_ID IN (SELECT DRFT_ID FROM DRFT WHERE SSNT_YR = #{ssntYr})
+    </delete>
+
+    <delete id="deleteDrft">
+        DELETE FROM DRFT WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <!-- 외국인 선수 -->
+    <delete id="deleteFrgnPlrOffer">
+        DELETE FROM FRGN_PLR_OFFER WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <delete id="deleteFrgnPlrCandAblt">
+        DELETE FROM FRGN_PLR_CAND_ABLT
+         WHERE CAND_ID IN (SELECT CAND_ID FROM FRGN_PLR_CAND WHERE SSNT_YR = #{ssntYr})
+    </delete>
+
+    <delete id="deleteFrgnPlrCandStat">
+        DELETE FROM FRGN_PLR_CAND_STAT
+         WHERE CAND_ID IN (SELECT CAND_ID FROM FRGN_PLR_CAND WHERE SSNT_YR = #{ssntYr})
+    </delete>
+
+    <delete id="deleteFrgnPlrCand">
+        DELETE FROM FRGN_PLR_CAND WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <!-- 포스트시즌 -->
+    <delete id="deletePstssntGame">
+        DELETE FROM PSTSSNT_GAME
+         WHERE SRS_ID IN (SELECT SRS_ID FROM PSTSSNT_SRS WHERE SSNT_YR = #{ssntYr})
+    </delete>
+
+    <delete id="deletePstssntSrs">
+        DELETE FROM PSTSSNT_SRS WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <!-- 이벤트 -->
+    <delete id="deleteSsntEvnt">
+        DELETE FROM SSNT_EVNT WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+    <!-- 스태프 (해당 시즌 고용된 것만) -->
+    <delete id="deleteStffTmCntrct">
+        DELETE FROM STFF_TM_CNTRCT WHERE YEAR(CNTRCT_BGNG_DT) = #{ssntYr}
+    </delete>
+
+    <delete id="deleteStffTm">
+        DELETE FROM STFF_TM WHERE YEAR(STFF_BGNG_DT) = #{ssntYr}
+    </delete>
+
+    <delete id="deleteStffCandAblt">
+        DELETE FROM STFF_CAND_ABLT
+         WHERE CAND_ID IN (SELECT CAND_ID FROM STFF_CAND WHERE YEAR(CREATED_AT) = #{ssntYr})
+    </delete>
+
+    <delete id="deleteStffCand">
+        DELETE FROM STFF_CAND WHERE YEAR(CREATED_AT) = #{ssntYr}
+    </delete>
+
+    <!-- 시즌 본체 -->
+    <delete id="deleteSsnt">
+        DELETE FROM SSNT WHERE SSNT_YR = #{ssntYr}
+    </delete>
+
+</mapper>

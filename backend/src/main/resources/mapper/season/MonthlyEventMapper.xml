@@ -1,0 +1,419 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kbo.gm.domain.season.mapper.MonthlyEventMapper">
+
+    <!-- ===== Step 1: 팀 월간 성적 집계 ===== -->
+    <!-- 완료 경기(GAME_STTS_CD='02')를 팀별로 집계 -->
+    <select id="aggregateTeamMonthlyStats" resultType="map">
+        SELECT
+            -- TM: 집계 대상 팀
+            T.TM_ID,
+            -- 승: 홈팀이고 홈 점수가 높거나, 원정팀이고 원정 점수가 높은 경우
+            SUM(CASE
+                WHEN G.HOME_TM_ID = T.TM_ID AND G.HOME_SCORE > G.AWAY_SCORE THEN 1
+                WHEN G.AWAY_TM_ID = T.TM_ID AND G.AWAY_SCORE > G.HOME_SCORE THEN 1
+                ELSE 0
+            END) AS W,
+            -- 패: 반대
+            SUM(CASE
+                WHEN G.HOME_TM_ID = T.TM_ID AND G.HOME_SCORE &lt; G.AWAY_SCORE THEN 1
+                WHEN G.AWAY_TM_ID = T.TM_ID AND G.AWAY_SCORE &lt; G.HOME_SCORE THEN 1
+                ELSE 0
+            END) AS L,
+            -- 무: 동점
+            SUM(CASE WHEN G.HOME_SCORE = G.AWAY_SCORE THEN 1 ELSE 0 END) AS T,
+            -- RS: 득점
+            SUM(CASE
+                WHEN G.HOME_TM_ID = T.TM_ID THEN COALESCE(G.HOME_SCORE, 0)
+                WHEN G.AWAY_TM_ID = T.TM_ID THEN COALESCE(G.AWAY_SCORE, 0)
+                ELSE 0
+            END) AS RS,
+            -- RA: 실점
+            SUM(CASE
+                WHEN G.HOME_TM_ID = T.TM_ID THEN COALESCE(G.AWAY_SCORE, 0)
+                WHEN G.AWAY_TM_ID = T.TM_ID THEN COALESCE(G.HOME_SCORE, 0)
+                ELSE 0
+            END) AS RA,
+            COUNT(G.GAME_ID) AS G_CNT
+        FROM TM T
+            JOIN GAME G ON (G.HOME_TM_ID = T.TM_ID OR G.AWAY_TM_ID = T.TM_ID)
+                AND G.SSNT_YR = #{ssntYr}
+                AND MONTH(G.GAME_DT) = #{mon}
+                AND G.GAME_STTS_CD = '02'  -- 완료 경기만
+        GROUP BY T.TM_ID
+    </select>
+
+    <!-- ===== TM_MON_REC UPSERT ===== -->
+    <insert id="upsertTmMonRecBatch">
+        INSERT INTO TM_MON_REC (TM_ID, SSNT_YR, MON, W, L, T, RS, RA)
+        VALUES
+        <foreach collection="list" item="r" separator=",">
+            (#{r.tmId}, #{r.ssntYr}, #{r.mon}, #{r.w}, #{r.l}, #{r.t}, #{r.rs}, #{r.ra})
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+            W = VALUES(W), L = VALUES(L), T = VALUES(T),
+            RS = VALUES(RS), RA = VALUES(RA)
+    </insert>
+
+    <!-- STND 갱신은 MonthlyEventService에서 JdbcTemplate으로 처리 -->
+
+    <!-- ===== Step 2: 타자 월간 기록 집계 ===== -->
+    <select id="aggregateBatterMonthlyStats" resultType="map">
+        SELECT
+            -- PLR_BATR_GAME_REC: 타자 경기 기록
+            B.PLR_ID,
+            B.TM_ID,
+            COUNT(DISTINCT B.GAME_ID) AS G,
+            SUM(B.PA)    AS PA,
+            SUM(B.AB)    AS AB,
+            SUM(B.H)     AS H,
+            SUM(B.DOBL)  AS DOBL,
+            SUM(B.TRPL)  AS TRPL,
+            SUM(B.HR)    AS HR,
+            SUM(B.RBI)   AS RBI,
+            SUM(B.R)     AS R,
+            SUM(B.BB)    AS BB,
+            SUM(B.IBB)   AS IBB,
+            SUM(B.SO)    AS SO,
+            SUM(B.SB)    AS SB,
+            SUM(B.CS)    AS CS,
+            SUM(B.HBP)   AS HBP,
+            SUM(B.SAC)   AS SAC,
+            SUM(B.SF)    AS SF,
+            SUM(B.GIDP)  AS GIDP,
+            -- 타율 = H / AB
+            CASE WHEN SUM(B.AB) > 0
+                 THEN ROUND(SUM(B.H) / SUM(B.AB), 3) ELSE NULL END AS BA,
+            -- 출루율 = (H+BB+HBP) / (AB+BB+HBP+SF)
+            CASE WHEN (SUM(B.AB) + SUM(B.BB) + SUM(B.HBP) + SUM(B.SF)) > 0
+                 THEN ROUND(
+                     (SUM(B.H) + SUM(B.BB) + SUM(B.HBP)) /
+                     (SUM(B.AB) + SUM(B.BB) + SUM(B.HBP) + SUM(B.SF)), 3)
+                 ELSE NULL END AS OBP,
+            -- 장타율 = TB / AB
+            CASE WHEN SUM(B.AB) > 0
+                 THEN ROUND(
+                     (SUM(B.H) + SUM(B.DOBL) + SUM(B.TRPL)*2 + SUM(B.HR)*3) /
+                     SUM(B.AB), 3)
+                 ELSE NULL END AS SLG
+        FROM PLR_BATR_GAME_REC B
+            JOIN GAME G ON G.GAME_ID = B.GAME_ID
+                AND G.SSNT_YR = #{ssntYr}
+                AND MONTH(G.GAME_DT) = #{mon}
+                AND G.GAME_STTS_CD = '02'
+        GROUP BY B.PLR_ID, B.TM_ID
+    </select>
+
+    <!-- ===== Step 2: 투수 월간 기록 집계 ===== -->
+    <select id="aggregatePitcherMonthlyStats" resultType="map">
+        SELECT
+            -- PLR_PTCH_GAME_REC: 투수 경기 기록
+            P.PLR_ID,
+            P.TM_ID,
+            COUNT(DISTINCT P.GAME_ID)                       AS G,
+            SUM(CASE WHEN P.IP_OUT >= 18 THEN 1 ELSE 0 END) AS GS, -- 선발 기준: 6이닝 이상
+            SUM(P.IP_OUT)                                   AS IP_OUT,
+            SUM(P.BF)                                       AS BF,
+            SUM(P.H)                                        AS H,
+            SUM(P.HR)                                       AS HR,
+            SUM(P.R)                                        AS R,
+            SUM(P.ER)                                       AS ER,
+            SUM(P.BB)                                       AS BB,
+            SUM(P.IBB)                                      AS IBB,
+            SUM(P.SO)                                       AS SO,
+            SUM(P.HBP)                                      AS HBP,
+            SUM(P.W)                                        AS W,
+            SUM(P.L)                                        AS L,
+            SUM(P.SV)                                       AS SV,
+            SUM(P.HLD)                                      AS HLD,
+            -- ERA = ER * 27 / IP_OUT
+            CASE WHEN SUM(P.IP_OUT) > 0
+                 THEN ROUND(SUM(P.ER) * 27.0 / SUM(P.IP_OUT), 2) ELSE NULL END AS ERA,
+            -- WHIP = (BB + H) / (IP_OUT / 3)
+            CASE WHEN SUM(P.IP_OUT) > 0
+                 THEN ROUND((SUM(P.BB) + SUM(P.H)) * 3.0 / SUM(P.IP_OUT), 3) ELSE NULL END AS WHIP
+        FROM PLR_PTCH_GAME_REC P
+            JOIN GAME G ON G.GAME_ID = P.GAME_ID
+                AND G.SSNT_YR = #{ssntYr}
+                AND MONTH(G.GAME_DT) = #{mon}
+                AND G.GAME_STTS_CD = '02'
+        GROUP BY P.PLR_ID, P.TM_ID
+    </select>
+
+    <!-- ===== PLR_BATR_MON_REC UPSERT ===== -->
+    <insert id="upsertBatterMonRecBatch">
+        INSERT INTO PLR_BATR_MON_REC
+            (PLR_ID, SSNT_YR, MON, TM_ID, G, PA, AB, H, DOBL, TRPL, HR, RBI, R,
+             BB, IBB, SO, SB, CS, HBP, SAC, SF, GIDP, BA, OBP, SLG, OPS)
+        VALUES
+        <foreach collection="list" item="r" separator=",">
+            (#{r.plrId}, #{r.ssntYr}, #{r.mon}, #{r.tmId},
+             #{r.g}, #{r.pa}, #{r.ab}, #{r.h}, #{r.dobl}, #{r.trpl}, #{r.hr},
+             #{r.rbi}, #{r.r}, #{r.bb}, #{r.ibb}, #{r.so}, #{r.sb}, #{r.cs},
+             #{r.hbp}, #{r.sac}, #{r.sf}, #{r.gidp},
+             #{r.ba}, #{r.obp}, #{r.slg},
+             CASE WHEN #{r.obp} IS NOT NULL AND #{r.slg} IS NOT NULL
+                  THEN ROUND(#{r.obp} + #{r.slg}, 3) ELSE NULL END)
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+            G=VALUES(G), PA=VALUES(PA), AB=VALUES(AB), H=VALUES(H),
+            DOBL=VALUES(DOBL), TRPL=VALUES(TRPL), HR=VALUES(HR),
+            RBI=VALUES(RBI), R=VALUES(R), BB=VALUES(BB), SO=VALUES(SO),
+            SB=VALUES(SB), HBP=VALUES(HBP), BA=VALUES(BA), OBP=VALUES(OBP),
+            SLG=VALUES(SLG), OPS=VALUES(OPS)
+    </insert>
+
+    <!-- ===== PLR_PTCH_MON_REC UPSERT ===== -->
+    <insert id="upsertPitcherMonRecBatch">
+        INSERT INTO PLR_PTCH_MON_REC
+            (PLR_ID, SSNT_YR, MON, TM_ID, G, GS, IP_OUT, BF, H, HR, R, ER,
+             BB, IBB, SO, HBP, W, L, SV, HLD, ERA, WHIP)
+        VALUES
+        <foreach collection="list" item="r" separator=",">
+            (#{r.plrId}, #{r.ssntYr}, #{r.mon}, #{r.tmId},
+             #{r.g}, #{r.gs}, #{r.ipOut}, #{r.bf}, #{r.h}, #{r.hr},
+             #{r.r}, #{r.er}, #{r.bb}, #{r.ibb}, #{r.so}, #{r.hbp},
+             #{r.w}, #{r.l}, #{r.sv}, #{r.hld}, #{r.era}, #{r.whip})
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+            G=VALUES(G), GS=VALUES(GS), IP_OUT=VALUES(IP_OUT), H=VALUES(H),
+            HR=VALUES(HR), R=VALUES(R), ER=VALUES(ER), BB=VALUES(BB),
+            SO=VALUES(SO), W=VALUES(W), L=VALUES(L), SV=VALUES(SV),
+            HLD=VALUES(HLD), ERA=VALUES(ERA), WHIP=VALUES(WHIP)
+    </insert>
+
+    <!-- ===== Step 3: 월간 MVP 타자 (OPS 최고, PA >= 40) ===== -->
+    <select id="findMonthlyMvpBatter" resultType="map">
+        SELECT
+            B.PLR_ID,
+            P.PLR_NM,
+            T.TM_KR_NM,
+            B.PA,
+            B.BA,
+            B.OPS,
+            B.HR,
+            B.RBI
+        FROM PLR_BATR_MON_REC B
+            JOIN PLR P ON P.PLR_ID = B.PLR_ID
+            JOIN TM T ON T.TM_ID = B.TM_ID
+        WHERE B.SSNT_YR = #{ssntYr}
+          AND B.MON = #{mon}
+          AND B.PA >= 40
+          AND B.OPS IS NOT NULL
+        ORDER BY B.OPS DESC, B.HR DESC, B.RBI DESC
+        LIMIT 1
+    </select>
+
+    <!-- ===== Step 3: 월간 MVP 투수 (ERA 최저, IP_OUT >= 45 = 15이닝) ===== -->
+    <select id="findMonthlyMvpPitcher" resultType="map">
+        SELECT
+            P2.PLR_ID,
+            P.PLR_NM,
+            T.TM_KR_NM,
+            P2.IP_OUT,
+            P2.ERA,
+            P2.W,
+            P2.SO
+        FROM PLR_PTCH_MON_REC P2
+            JOIN PLR P ON P.PLR_ID = P2.PLR_ID
+            JOIN TM T ON T.TM_ID = P2.TM_ID
+        WHERE P2.SSNT_YR = #{ssntYr}
+          AND P2.MON = #{mon}
+          AND P2.IP_OUT >= 45
+          AND P2.ERA IS NOT NULL
+        ORDER BY P2.ERA ASC, P2.W DESC, P2.SO DESC
+        LIMIT 1
+    </select>
+
+    <!-- ===== Step 4: 팀 마케팅 정보 조회 ===== -->
+    <select id="findTeamMarketInfo" resultType="map">
+        SELECT
+            TM.TM_ID,
+            TM.TM_KR_NM,
+            COALESCE(MKT.AVG_ATND_CNT, 5000)   AS AVG_ATND_CNT,  -- 기본 평균 관중
+            COALESCE(MKT.PPLT_RTG, 50)          AS PPLT_RTG        -- 팀 인기
+        FROM TM TM
+            LEFT JOIN TM_MKT_SSNT MKT ON MKT.TM_ID = TM.TM_ID
+                AND MKT.SSNT_YR = #{ssntYr}
+    </select>
+
+    <!-- ===== Step 4: 팀별 선수 연봉 합계 ===== -->
+    <select id="findTeamSalarySum" resultType="map">
+        SELECT
+            P.TM_ID,
+            SUM(COALESCE(P.PLR_ANSL_SAL, 0)) AS TOTAL_SAL
+        FROM PLR P
+        WHERE P.TM_ID IS NOT NULL
+          AND P.PLR_STTS_CD = 'AT'
+        GROUP BY P.TM_ID
+    </select>
+
+    <!-- ===== Step 4: 팀별 당월 홈 경기 수 ===== -->
+    <select id="findTeamHomeGameCount" resultType="map">
+        SELECT
+            HOME_TM_ID AS TM_ID,
+            COUNT(*) AS HOME_GAME_CNT
+        FROM GAME
+        WHERE SSNT_YR = #{ssntYr}
+          AND MONTH(GAME_DT) = #{mon}
+          AND GAME_STTS_CD = '02'
+        GROUP BY HOME_TM_ID
+    </select>
+
+    <!-- ===== Step 4: TM_FNC_SSNT UPSERT ===== -->
+    <insert id="upsertTmFncSsntBatch">
+        INSERT INTO TM_FNC_SSNT
+            (TM_ID, SSNT_YR, TCKT_REV, PLR_SAL_COST)
+        VALUES
+        <foreach collection="list" item="r" separator=",">
+            (#{r.tmId}, #{r.ssntYr}, #{r.tcktRev}, #{r.plrSalCost})
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+            TCKT_REV    = TCKT_REV + VALUES(TCKT_REV),
+            PLR_SAL_COST = PLR_SAL_COST + VALUES(PLR_SAL_COST),
+            CUR_CASH    = COALESCE(CUR_CASH, 0)
+                          + VALUES(TCKT_REV)
+                          - VALUES(PLR_SAL_COST)
+    </insert>
+
+    <!-- ===== Step 5: 팀별 당월 성적 조회 ===== -->
+    <select id="findTeamMonthlyRecord" resultType="map">
+        SELECT
+            TM_ID,
+            W, L, T,
+            -- 승률: 무승부 0.5승 처리
+            CASE WHEN (W + L) > 0
+                 THEN ROUND((W + T * 0.5) / (W + L + T), 4)
+                 ELSE 0.5 END AS WIN_PCT
+        FROM TM_MON_REC
+        WHERE SSNT_YR = #{ssntYr}
+          AND MON = #{mon}
+    </select>
+
+    <!-- ===== Step 5: 팀 MKT 조회 ===== -->
+    <select id="findTeamMktSsnt" resultType="map">
+        SELECT
+            TM_ID,
+            COALESCE(FAN_STSFCTN, 50)  AS FAN_STSFCTN,
+            COALESCE(OWN_STSFCTN, 50)  AS OWN_STSFCTN,
+            COALESCE(FAN_LYLTY, 50)    AS FAN_LYLTY
+        FROM TM_MKT_SSNT
+        WHERE SSNT_YR = #{ssntYr}
+    </select>
+
+    <!-- ===== Step 5: TM_MKT_SSNT UPSERT ===== -->
+    <insert id="upsertTmMktSsntBatch">
+        INSERT INTO TM_MKT_SSNT
+            (TM_ID, SSNT_YR, FAN_STSFCTN, OWN_STSFCTN)
+        VALUES
+        <foreach collection="list" item="r" separator=",">
+            (#{r.tmId}, #{r.ssntYr}, #{r.fanStsfctn}, #{r.ownStsfctn})
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+            FAN_STSFCTN = VALUES(FAN_STSFCTN),
+            OWN_STSFCTN = VALUES(OWN_STSFCTN)
+    </insert>
+
+    <!-- ===== Step 4: 계약된 방송국 승리 수당 조회 ===== -->
+    <!-- GAME_CFG → BRDCST_SPNSR 조인으로 현재 계약 방송국의 WIN_BONUS 반환 -->
+    <select id="findBrdcstWinBonus" resultType="java.lang.Long">
+        SELECT BS.WIN_BONUS
+        FROM GAME_CFG GC
+            JOIN BRDCST_SPNSR BS ON BS.BRDCST_CD = GC.CFG_VAL
+        WHERE GC.CFG_KEY = 'BRDCST_SPNSR'
+        LIMIT 1
+    </select>
+
+    <!-- ===== Step 6: 유저 팀 ID 조회 ===== -->
+    <select id="findUserTmId" resultType="Long">
+        SELECT CFG_VAL
+        FROM GAME_CFG
+        WHERE CFG_KEY = 'USER_TM_ID'
+        LIMIT 1
+    </select>
+
+    <!-- ===== Step 6: 유저 팀 당월 성적 ===== -->
+    <select id="findUserTeamMonthlyRecord" resultType="map">
+        SELECT
+            TMR.W, TMR.L, TMR.T, TMR.RS, TMR.RA,
+            T.TM_KR_NM,
+            -- 시즌 누적
+            S.W AS SEASON_W, S.L AS SEASON_L, S.STND_RNK
+        FROM TM_MON_REC TMR
+            JOIN TM T ON T.TM_ID = TMR.TM_ID
+            LEFT JOIN STND S ON S.TM_ID = TMR.TM_ID AND S.SSNT_YR = TMR.SSNT_YR
+        WHERE TMR.TM_ID = #{tmId}
+          AND TMR.SSNT_YR = #{ssntYr}
+          AND TMR.MON = #{mon}
+        LIMIT 1
+    </select>
+
+    <!-- ===== Step 6: 유저 팀 이달 최고 타자 ===== -->
+    <select id="findUserTeamBestBatter" resultType="map">
+        SELECT
+            P.PLR_NM,
+            B.PA, B.BA, B.OPS, B.HR, B.RBI
+        FROM PLR_BATR_MON_REC B
+            JOIN PLR P ON P.PLR_ID = B.PLR_ID
+        WHERE B.TM_ID = #{tmId}
+          AND B.SSNT_YR = #{ssntYr}
+          AND B.MON = #{mon}
+          AND B.PA >= 15
+          AND B.OPS IS NOT NULL
+        ORDER BY B.OPS DESC
+        LIMIT 1
+    </select>
+
+    <!-- ===== Step 6: 유저 팀 이달 최고 투수 ===== -->
+    <select id="findUserTeamBestPitcher" resultType="map">
+        SELECT
+            P.PLR_NM,
+            P2.IP_OUT, P2.ERA, P2.W, P2.SV, P2.SO
+        FROM PLR_PTCH_MON_REC P2
+            JOIN PLR P ON P.PLR_ID = P2.PLR_ID
+        WHERE P2.TM_ID = #{tmId}
+          AND P2.SSNT_YR = #{ssntYr}
+          AND P2.MON = #{mon}
+          AND P2.IP_OUT >= 9
+          AND P2.ERA IS NOT NULL
+        ORDER BY P2.ERA ASC, P2.W DESC
+        LIMIT 1
+    </select>
+
+    <!-- ===== Step 6: 유저 팀 재정 조회 ===== -->
+    <select id="findUserTeamFinance" resultType="map">
+        SELECT
+            COALESCE(TCKT_REV, 0)     AS TCKT_REV,
+            COALESCE(BCST_REV, 0)     AS BCST_REV,
+            COALESCE(PLR_SAL_COST, 0) AS PLR_SAL_COST,
+            COALESCE(CUR_CASH, 0)     AS CUR_CASH
+        FROM TM_FNC_SSNT
+        WHERE TM_ID = #{tmId}
+          AND SSNT_YR = #{ssntYr}
+        LIMIT 1
+    </select>
+
+    <!-- ===== 이벤트 배치 삽입 ===== -->
+    <insert id="insertEvntBatch">
+        INSERT INTO SSNT_EVNT (SSNT_YR, EVNT_DT, TM_ID, EVNT_TYPE_CD, EVNT_TTLT, EVNT_CNTS)
+        VALUES
+        <foreach collection="list" item="e" separator=",">
+            (#{e.ssntYr}, #{e.evntDt}, #{e.tmId}, #{e.evntTypeCd}, #{e.evntTtlt}, #{e.evntCnts})
+        </foreach>
+    </insert>
+
+    <!-- ===== STND 순위 재부여 (승률 내림차순) ===== -->
+    <select id="findCurrentStnd" resultType="map">
+        SELECT
+            TM_ID,
+            W, L, T,
+            CASE WHEN (W + L) > 0
+                 THEN ROUND(W / (W + L), 4) ELSE 0 END AS PCT
+        FROM STND
+        WHERE SSNT_YR = #{ssntYr}
+        ORDER BY PCT DESC, W DESC
+    </select>
+
+</mapper>

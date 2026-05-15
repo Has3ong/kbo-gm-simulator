@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kbo.gm.common.mapper.CmnCdMapper">
+
+    <select id="findAll" resultType="com.kbo.gm.common.entity.CmnCd">
+        SELECT CD_ID, CD_VAL, CD_NM, CD_ENG_NM, CD_DESC
+        FROM CMN_CD
+        ORDER BY CD_ID, CD_VAL
+    </select>
+
+    <update id="updateCode">
+        UPDATE CMN_CD
+        SET CD_NM     = #{cdNm},
+            CD_ENG_NM = #{cdEngNm},
+            CD_DESC   = #{cdDesc}
+        WHERE CD_ID  = #{cdId}
+          AND CD_VAL = #{cdVal}
+    </update>
+
+    <select id="findByCdId" resultType="com.kbo.gm.common.entity.CmnCd">
+        SELECT CD_ID, CD_VAL, CD_NM, CD_ENG_NM, CD_DESC
+        FROM CMN_CD
+        WHERE CD_ID = #{cdId}
+        ORDER BY CD_VAL
+    </select>
+
+    <select id="findByCdIdAndCdVal" resultType="com.kbo.gm.common.entity.CmnCd">
+        SELECT CD_ID, CD_VAL, CD_NM, CD_ENG_NM, CD_DESC
+        FROM CMN_CD
+        WHERE CD_ID = #{cdId}
+          AND CD_VAL = #{cdVal}
+    </select>
+
+</mapper>

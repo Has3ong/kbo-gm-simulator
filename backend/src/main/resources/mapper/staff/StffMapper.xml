@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kbo.gm.domain.staff.mapper.StffMapper">
+
+    <select id="findAll" resultType="com.kbo.gm.domain.staff.dao.StffDao">
+        SELECT S.STFF_ID, S.STFF_NM, S.STFF_ENG_NM, S.STFF_TYPE_CD,
+               C.CD_NM AS STFF_TYPE_NM,
+               S.STFF_NTNLT, S.STFF_FRGN_YN, S.STFF_BRTH_DT,
+               S.STFF_EXP_YR, S.STFF_ANSL_SAL, S.STFF_STTS_CD,
+               T.TM_ID, T.TM_KR_NM
+        FROM STFF S
+                 LEFT JOIN CMN_CD C ON C.CD_ID = 'STFF_TYPE' AND C.CD_VAL = S.STFF_TYPE_CD
+                 LEFT JOIN TM T ON T.TM_ID = S.TM_ID
+        <where>
+            AND S.STFF_STTS_CD = 'AT'
+            <if test="tmId != null">AND S.TM_ID = #{tmId}</if>
+            <if test="stffTypeCd != null and stffTypeCd != ''">AND S.STFF_TYPE_CD = #{stffTypeCd}</if>
+        </where>
+        ORDER BY S.TM_ID, S.STFF_TYPE_CD, S.STFF_ID
+    </select>
+
+    <select id="findById" resultType="com.kbo.gm.domain.staff.dao.StffDao">
+        SELECT S.STFF_ID, S.STFF_NM, S.STFF_ENG_NM, S.STFF_TYPE_CD,
+               C.CD_NM AS STFF_TYPE_NM,
+               S.STFF_NTNLT, S.STFF_FRGN_YN, S.STFF_BRTH_DT,
+               S.STFF_EXP_YR, S.STFF_ANSL_SAL, S.STFF_STTS_CD,
+               T.TM_ID, T.TM_KR_NM
+        FROM STFF S
+                 LEFT JOIN CMN_CD C ON C.CD_ID = 'STFF_TYPE' AND C.CD_VAL = S.STFF_TYPE_CD
+                 LEFT JOIN TM T ON T.TM_ID = S.TM_ID
+        WHERE S.STFF_ID = #{stffId}
+    </select>
+
+    <select id="findAbilities" resultType="com.kbo.gm.domain.staff.dao.StffAbltDao">
+        SELECT A.STFF_ID, A.STFF_ABLT_CD,
+               C.CD_NM AS STFF_ABLT_NM, C.CD_ENG_NM AS STFF_ABLT_ENG_NM,
+               A.STFF_ABLT_VAL
+        FROM STFF_ABLT A
+                 LEFT JOIN CMN_CD C ON C.CD_ID = 'STFF_ABLT' AND C.CD_VAL = A.STFF_ABLT_CD
+        WHERE A.STFF_ID = #{stffId}
+        ORDER BY A.STFF_ABLT_CD
+    </select>
+
+</mapper>

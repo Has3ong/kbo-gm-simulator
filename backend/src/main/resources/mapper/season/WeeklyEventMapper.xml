@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kbo.gm.domain.season.mapper.WeeklyEventMapper">
+
+    <!-- ===== 유저 팀 ID ===== -->
+    <select id="findUserTmId" resultType="java.lang.Long">
+        SELECT CFG_VAL FROM GAME_CFG WHERE CFG_KEY = 'USER_TM_ID' LIMIT 1
+    </select>
+
+    <!-- ===== 주간 팀 성적 집계 ===== -->
+    <select id="findWeeklyTeamStats" resultType="map">
+        SELECT G.HOME_TM_ID AS TM_ID,
+               T.TM_KR_NM,
+               SUM(CASE WHEN G.HOME_SCORE > G.AWAY_SCORE THEN 1 ELSE 0 END) AS W,
+               SUM(CASE WHEN G.HOME_SCORE &lt; G.AWAY_SCORE THEN 1 ELSE 0 END) AS L,
+               SUM(CASE WHEN G.HOME_SCORE = G.AWAY_SCORE THEN 1 ELSE 0 END) AS T,
+               SUM(G.HOME_SCORE) AS RS,
+               SUM(G.AWAY_SCORE) AS RA
+        FROM   GAME G
+               JOIN TM T ON T.TM_ID = G.HOME_TM_ID
+        WHERE  G.SSNT_YR = #{ssntYr}
+          AND  G.GAME_DT BETWEEN #{weekStart} AND #{weekEnd}
+          AND  G.GAME_STTS_CD = '03'
+        GROUP BY G.HOME_TM_ID, T.TM_KR_NM
+        UNION ALL
+        SELECT G.AWAY_TM_ID AS TM_ID,
+               T.TM_KR_NM,
+               SUM(CASE WHEN G.AWAY_SCORE > G.HOME_SCORE THEN 1 ELSE 0 END) AS W,
+               SUM(CASE WHEN G.AWAY_SCORE &lt; G.HOME_SCORE THEN 1 ELSE 0 END) AS L,
+               SUM(CASE WHEN G.AWAY_SCORE = G.HOME_SCORE THEN 1 ELSE 0 END) AS T,
+               SUM(G.AWAY_SCORE) AS RS,
+               SUM(G.HOME_SCORE) AS RA
+        FROM   GAME G
+               JOIN TM T ON T.TM_ID = G.AWAY_TM_ID
+        WHERE  G.SSNT_YR = #{ssntYr}
+          AND  G.GAME_DT BETWEEN #{weekStart} AND #{weekEnd}
+          AND  G.GAME_STTS_CD = '03'
+        GROUP BY G.AWAY_TM_ID, T.TM_KR_NM
+    </select>
+
+    <!-- ===== 팀 소속 활동 선수 전체 ===== -->
+    <select id="findAllActivePlayersByTeam" resultType="map">
+        SELECT P.PLR_ID, P.PLR_NM, C.REPR_POSN_CD,
+               FC.FATG, FC.COND,
+               (SELECT ABLT_VAL FROM PLR_ABLT PA WHERE PA.PLR_ID=P.PLR_ID AND PA.ABLT_CD='STM' LIMIT 1) AS STM
+        FROM   PLR_ENTY E
+               JOIN PLR P ON P.PLR_ID = E.PLR_ID
+               LEFT JOIN PLR_TM_CNTRCT C ON C.PLR_ID = P.PLR_ID AND C.TM_ID = E.TM_ID
+               LEFT JOIN PLR_FATG_COND FC ON FC.PLR_ID = P.PLR_ID
+                   AND FC.SSNT_YR = (SELECT MAX(SSNT_YR) FROM SSNT)
+        WHERE  E.TM_ID = #{tmId}
+          AND  E.SSNT_YR = (SELECT MAX(SSNT_YR) FROM SSNT)
+          AND  P.PLR_STTS_CD = 'AT'
+    </select>
+
+    <!-- ===== 부상 선수 목록 ===== -->
+    <select id="findInjuredPlayers" resultType="map">
+        SELECT P.PLR_ID, P.PLR_NM, T.TM_KR_NM
+        FROM   PLR P
+               LEFT JOIN PLR_TM PT ON PT.PLR_ID = P.PLR_ID
+               LEFT JOIN TM T ON T.TM_ID = PT.TM_ID
+        WHERE  P.PLR_STTS_CD = 'INJ'
+        LIMIT 50
+    </select>
+
+    <!-- ===== 드래프트 스카우팅 보고서 ===== -->
+    <select id="findDrftScutRpts" resultType="map">
+        SELECT DRFT_PLR_ID, TM_ID, ACCRCY
+        FROM   DRFT_SCUT_RPT
+        WHERE  ACCRCY &lt; 100
+        LIMIT 200
+    </select>
+
+    <!-- ===== 팀 스태프 (스카우팅 시설) ===== -->
+    <select id="findTeamStaff" resultType="map">
+        SELECT F.FCLTY_LVL
+        FROM   TM_FCLTY F
+        WHERE  F.TM_ID = #{tmId}
+          AND  F.FCLTY_TYPE_CD = 'SCTG'
+        LIMIT 1
+    </select>
+
+    <!-- ===== 이벤트 배치 삽입 ===== -->
+    <insert id="insertEvntBatch">
+        INSERT INTO SSNT_EVNT (SSNT_YR, EVNT_DT, TM_ID, PLR_ID, EVNT_TYPE_CD, EVNT_TTLT, EVNT_CNTS, RD_YN)
+        VALUES
+        <foreach collection="list" item="e" separator=",">
+            (#{e.ssntYr}, #{e.evntDt}, #{e.tmId}, #{e.plrId}, #{e.evntTypeCd}, #{e.evntTtlt}, #{e.evntCnts}, '0')
+        </foreach>
+    </insert>
+
+</mapper>

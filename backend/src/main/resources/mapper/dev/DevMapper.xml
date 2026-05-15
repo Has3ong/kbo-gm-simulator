@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kbo.gm.domain.dev.mapper.DevMapper">
+
+    <!-- 전체 시설 업그레이드 비용 설정 조회 -->
+    <select id="findAllFcltyCosts" resultType="com.kbo.gm.domain.dev.dto.FcltyCostRow">
+        SELECT FCLTY_TYPE_CD AS fcltyTypeCd
+             , FROM_LVL      AS fromLvl
+             , TO_LVL        AS toLvl
+             , UPGR_COST     AS upgrCost
+             , UPGR_DAYS     AS upgrDays
+          FROM FCLTY_UPGR_COST_CFG
+         ORDER BY FCLTY_TYPE_CD
+               , FROM_LVL
+    </select>
+
+    <!-- 시설 업그레이드 비용 수정 -->
+    <update id="updateFcltyCost">
+        UPDATE FCLTY_UPGR_COST_CFG
+           SET UPGR_COST = #{upgrCost}
+             , UPGR_DAYS = #{upgrDays}
+         WHERE FCLTY_TYPE_CD = #{fcltyTypeCd}
+           AND FROM_LVL      = #{fromLvl}
+    </update>
+
+</mapper>

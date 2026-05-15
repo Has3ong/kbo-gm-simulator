@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.kbo.gm.domain.roster.mapper.RstrMapper">
+
+    <!-- 전체 로스터 조회 (1군+2군, 포지션·능력치 순 정렬) -->
+    <select id="findRoster" resultType="com.kbo.gm.domain.roster.dao.PlrEntyDao">
+        SELECT PE.PLR_ID                                              /* 선수ID */
+             , PE.SSNT_YR                                            /* 시즌 연도 */
+             , PE.TM_ID                                              /* 팀ID */
+             , PE.ENTY_LVL_CD                                        /* 엔트리 레벨 */
+             , PE.ENTY_DT                                            /* 마지막 변경일 */
+             , P.PLR_NM                                              /* 선수명 */
+             , P.PLR_FRGN_YN                                         /* 외국인 여부 */
+             , P.PLR_STTS_CD                                         /* 선수 상태 */
+             , P.PLR_BAT_PTCH_HAND_CD                                /* 투타코드 */
+             , P.PLR_OVRL_ABLT                                       /* 종합 능력치 */
+             , P.PLR_ANSL_SAL                                        /* 연봉 */
+             , FC.FATG                                               /* 피로도 */
+             , FC.COND                                               /* 컨디션 */
+             , ( SELECT PP.POSN_CD
+                   FROM PLR_POSN PP
+                  WHERE PP.PLR_ID = PE.PLR_ID
+                  ORDER BY PP.POSN_PRFC_ABLT DESC
+                  LIMIT 1 )                                          /* 주 포지션 (숙련도 최고) */
+               AS posnCd
+             , ( SELECT PC.REPR_POSN_CD
+                   FROM PLR_TM_CNTRCT PC
+                  WHERE PC.PLR_ID = PE.PLR_ID
+                    AND PC.TM_ID  = PE.TM_ID )                       /* 대표 포지션 */
+               AS reprPosnCd
+          FROM PLR_ENTY PE                                           /* 선수 엔트리 현황 */
+          JOIN PLR P ON P.PLR_ID = PE.PLR_ID                         /* 선수 */
+          LEFT JOIN PLR_FATG_COND FC ON FC.PLR_ID = PE.PLR_ID AND FC.SSNT_YR = PE.SSNT_YR /* 피로도/컨디션 */
+         WHERE PE.TM_ID   = #{tmId}
+           AND PE.SSNT_YR = #{ssntYr}
+         ORDER BY PE.ENTY_LVL_CD ASC
+               , CASE ( SELECT PC2.REPR_POSN_CD
+                          FROM PLR_TM_CNTRCT PC2
+                         WHERE PC2.PLR_ID = PE.PLR_ID
+                           AND PC2.TM_ID  = PE.TM_ID )
+                   WHEN '10' THEN 1
+                   WHEN '20' THEN 2
+                   WHEN '21' THEN 3
+                   ELSE 4
+                 END ASC
+               , P.PLR_OVRL_ABLT DESC
+    </select>
+
+    <!-- 1군 엔트리 조회 -->
+    <select id="findEntry" resultType="com.kbo.gm.domain.roster.dao.PlrEntyDao">
+        SELECT PE.PLR_ID                                              /* 선수ID */
+             , PE.SSNT_YR                                            /* 시즌 연도 */
+             , PE.TM_ID                                              /* 팀ID */
+             , PE.ENTY_LVL_CD                                        /* 엔트리 레벨 */
+             , PE.ENTY_DT                                            /* 마지막 변경일 */
+             , P.PLR_NM                                              /* 선수명 */
+             , P.PLR_FRGN_YN                                         /* 외국인 여부 */
+             , P.PLR_STTS_CD                                         /* 선수 상태 */
+             , P.PLR_BAT_PTCH_HAND_CD                                /* 투타코드 */
+             , P.PLR_OVRL_ABLT                                       /* 종합 능력치 */
+             , P.PLR_ANSL_SAL                                        /* 연봉 */
+             , ( SELECT PP.POSN_CD
+                   FROM PLR_POSN PP
+                  WHERE PP.PLR_ID = PE.PLR_ID
+                  ORDER BY PP.POSN_PRFC_ABLT DESC
+                  LIMIT 1 )                                          /* 주 포지션 */
+               AS posnCd
+             , ( SELECT PC.REPR_POSN_CD
+                   FROM PLR_TM_CNTRCT PC
+                  WHERE PC.PLR_ID = PE.PLR_ID
+                    AND PC.TM_ID  = PE.TM_ID )                       /* 대표 포지션 */
+               AS reprPosnCd
+          FROM PLR_ENTY PE                                           /* 선수 엔트리 현황 */
+          JOIN PLR P ON P.PLR_ID = PE.PLR_ID                         /* 선수 */
+         WHERE PE.TM_ID      = #{tmId}
+           AND PE.SSNT_YR    = #{ssntYr}
+           AND PE.ENTY_LVL_CD = '1'
+         ORDER BY CASE ( SELECT PC2.REPR_POSN_CD
+                           FROM PLR_TM_CNTRCT PC2
+                          WHERE PC2.PLR_ID = PE.PLR_ID
+                            AND PC2.TM_ID  = PE.TM_ID )
+                    WHEN '10' THEN 1
+                    WHEN '20' THEN 2
+                    WHEN '21' THEN 3
+                    ELSE 4
+                  END ASC
+               , P.PLR_OVRL_ABLT DESC
+    </select>
+
+    <!-- 선수 엔트리 단건 조회 -->
+    <select id="findByPlrId" resultType="com.kbo.gm.domain.roster.dao.PlrEntyDao">
+        SELECT PE.PLR_ID           /* 선수ID */
+             , PE.SSNT_YR          /* 시즌 연도 */
+             , PE.TM_ID            /* 팀ID */
+             , PE.ENTY_LVL_CD      /* 엔트리 레벨 */
+             , PE.ENTY_DT          /* 마지막 변경일 */
+             , P.PLR_NM            /* 선수명 */
+             , P.PLR_FRGN_YN       /* 외국인 여부 */
+             , P.PLR_STTS_CD       /* 선수 상태 */
+             , P.PLR_BAT_PTCH_HAND_CD /* 투타코드 */
+             , P.PLR_OVRL_ABLT     /* 종합 능력치 */
+             , P.PLR_ANSL_SAL      /* 연봉 */
+          FROM PLR_ENTY PE          /* 선수 엔트리 현황 */
+          JOIN PLR P ON P.PLR_ID = PE.PLR_ID /* 선수 */
+         WHERE PE.PLR_ID  = #{plrId}
+           AND PE.SSNT_YR = #{ssntYr}
+    </select>
+
+    <!-- 1군 엔트리 인원 수 -->
+    <select id="countEntry" resultType="int">
+        SELECT COUNT(*)
+          FROM PLR_ENTY
+         WHERE TM_ID       = #{tmId}
+           AND SSNT_YR     = #{ssntYr}
+           AND ENTY_LVL_CD = '1'
+    </select>
+
+    <!-- 팀 소속 활성 선수ID 목록 (AT·INJ 모두 포함) -->
+    <select id="findActivePlayerIds" resultType="long">
+        SELECT PLR_ID
+          FROM PLR
+         WHERE TM_ID      = #{tmId}
+           AND PLR_STTS_CD IN ('AT', 'INJ')
+    </select>
+
+    <!-- 엔트리 등록 -->
+    <insert id="insertEnty">
+        INSERT INTO PLR_ENTY (PLR_ID, SSNT_YR, TM_ID, ENTY_LVL_CD, ENTY_DT)
+        VALUES (#{plrId}, #{ssntYr}, #{tmId}, #{entyLvlCd}, #{entyDt})
+    </insert>
+
+    <!-- 엔트리 레벨 수정 (콜업/말소) -->
+    <update id="updateEntyLvl">
+        UPDATE PLR_ENTY
+           SET ENTY_LVL_CD = #{entyLvlCd}
+             , ENTY_DT     = #{entyDt}
+         WHERE PLR_ID  = #{plrId}
+           AND SSNT_YR = #{ssntYr}
+    </update>
+
+    <!-- 엔트리 변경 이력 등록 -->
+    <insert id="insertEntyHist">
+        INSERT INTO PLR_ENTY_HIST (PLR_ID, TM_ID, SSNT_YR, FROM_ENTY_LVL, TO_ENTY_LVL, CHNG_DT, CHNG_RSN_CD)
+        VALUES (#{plrId}, #{tmId}, #{ssntYr}, #{fromEntyLvl}, #{toEntyLvl}, #{chngDt}, #{chngRsnCd})
+    </insert>
+
+</mapper>

@@ -1,0 +1,375 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kbo.gm.domain.draft.mapper.DrftMapper">
+
+    <!-- ──────────────────────────────────────────────────────── -->
+    <!-- Draft event                                             -->
+    <!-- ──────────────────────────────────────────────────────── -->
+
+    <select id="findByYear" resultType="com.kbo.gm.domain.draft.dao.DrftDao">
+        SELECT D.DRFT_ID                                                                          /* 드래프트 ID */
+             , D.SSNT_YR                                                                          /* 시즌 연도 */
+             , D.DRFT_DT                                                                          /* 드래프트 날짜 */
+             , D.DRFT_STTS_CD                                                                     /* 드래프트 상태코드 */
+             , D.RND_CNT                                                                          /* 라운드 수 */
+             , D.MAX_PICK_CNT                                                                     /* 최대 지명 수 */
+             , D.USER_TM_ID                                                                       /* 유저 팀 ID */
+             , (SELECT COUNT(*) FROM DRFT_ORD O WHERE O.DRFT_ID = D.DRFT_ID AND O.PICK_STTS_CD = 'PICKED')              AS TOTAL_PICKED   /* 전체 지명 수 */
+             , (SELECT COUNT(*) FROM DRFT_ORD O WHERE O.DRFT_ID = D.DRFT_ID AND O.TM_ID = D.USER_TM_ID AND O.PICK_STTS_CD = 'PICKED') AS MY_PICK_CNT    /* 유저 팀 지명 수 */
+             , (SELECT MIN(O.PICK_NO) FROM DRFT_ORD O WHERE O.DRFT_ID = D.DRFT_ID AND O.PICK_STTS_CD = 'PENDING')       AS CURRENT_PICK_NO /* 현재 픽 번호 */
+          FROM DRFT D  /* 드래프트 마스터 */
+         WHERE D.SSNT_YR = #{ssntYr}
+         LIMIT 1
+    </select>
+
+    <select id="findById" resultType="com.kbo.gm.domain.draft.dao.DrftDao">
+        SELECT D.DRFT_ID                                                                          /* 드래프트 ID */
+             , D.SSNT_YR                                                                          /* 시즌 연도 */
+             , D.DRFT_DT                                                                          /* 드래프트 날짜 */
+             , D.DRFT_STTS_CD                                                                     /* 드래프트 상태코드 */
+             , D.RND_CNT                                                                          /* 라운드 수 */
+             , D.MAX_PICK_CNT                                                                     /* 최대 지명 수 */
+             , D.USER_TM_ID                                                                       /* 유저 팀 ID */
+             , (SELECT COUNT(*) FROM DRFT_ORD O WHERE O.DRFT_ID = D.DRFT_ID AND O.PICK_STTS_CD = 'PICKED')              AS TOTAL_PICKED   /* 전체 지명 수 */
+             , (SELECT COUNT(*) FROM DRFT_ORD O WHERE O.DRFT_ID = D.DRFT_ID AND O.TM_ID = #{userTmId} AND O.PICK_STTS_CD = 'PICKED') AS MY_PICK_CNT    /* 유저 팀 지명 수 */
+             , (SELECT MIN(O.PICK_NO) FROM DRFT_ORD O WHERE O.DRFT_ID = D.DRFT_ID AND O.PICK_STTS_CD = 'PENDING')       AS CURRENT_PICK_NO /* 현재 픽 번호 */
+          FROM DRFT D  /* 드래프트 마스터 */
+         WHERE D.DRFT_ID = #{drftId}
+    </select>
+
+    <insert id="insertDrft" useGeneratedKeys="true" keyProperty="drftId">
+        INSERT INTO DRFT (SSNT_YR, DRFT_DT, DRFT_STTS_CD, RND_CNT, MAX_PICK_CNT, USER_TM_ID)
+        VALUES (#{ssntYr}, #{drftDt}, #{drftSttsCd}, #{rndCnt}, #{maxPickCnt}, #{userTmId})
+    </insert>
+
+    <update id="updateStatus">
+        UPDATE DRFT
+           SET DRFT_STTS_CD = #{sttsCd}
+         WHERE DRFT_ID = #{drftId}
+    </update>
+
+    <!-- ──────────────────────────────────────────────────────── -->
+    <!-- Draft players                                           -->
+    <!-- ──────────────────────────────────────────────────────── -->
+
+    <select id="findPlayers" resultType="com.kbo.gm.domain.draft.dao.DrftPlrDao">
+        SELECT P.DRFT_PLR_ID              /* 드래프트 선수 ID */
+             , P.DRFT_ID                  /* 드래프트 ID */
+             , P.PLR_NM                   /* 선수명 */
+             , P.PLR_ENG_NM               /* 선수 영문명 */
+             , P.PLR_AGE                  /* 나이 */
+             , P.PLR_ORGN_CD              /* 출신코드 */
+             , OC.CD_NM  AS PLR_ORGN_NM  /* 출신 한국어명 */
+             , P.HS_NM                    /* 출신 고등학교 */
+             , P.UNIV_NM                  /* 출신 대학교 */
+             , P.PLR_HT                   /* 신장 */
+             , P.PLR_WT                   /* 체중 */
+             , P.PREV_REC                 /* 주요 기록 */
+             , P.POSN_CD                  /* 주 포지션코드 */
+             , PC.CD_NM  AS POSN_NM       /* 주 포지션명 */
+             , P.REPR_POSN_CD             /* 대표 포지션코드 */
+             , RC.CD_NM  AS REPR_POSN_NM  /* 대표 포지션명 */
+             , P.PLR_BAT_PTCH_HAND_CD     /* 투타코드 */
+             , P.GRWTH_TEND               /* 성장 성향 */
+             , P.INJ_RSK                  /* 부상 위험도 */
+             , P.IS_PICK_YN               /* 지명 여부 */
+             , P.IS_EXCL_YN               /* 지명 제외 여부 */
+             , P.PLR_ID                   /* 입단 후 선수 ID */
+             , SR.EST_OVRL_ABLT           /* 추정 현재 능력치 */
+             , SR.EST_POT_ABLT            /* 추정 잠재 능력치 */
+             , SR.EST_RND                 /* 예상 지명 라운드 */
+             , SR.ACCRCY                  /* 스카우팅 정확도 */
+             , SR.GRADE                   /* 평가 등급 */
+             , SR.CMNT                    /* 스카우트 코멘트 */
+             , BD.PRIO_ORD                /* 보드 우선순위 */
+             , BD.DO_NOT_PICK             /* 지명 제외 여부 (보드) */
+             , BD.MEMO                    /* 메모 */
+          FROM DRFT_PLR P  /* 드래프트 선수풀 */
+          LEFT JOIN CMN_CD OC ON OC.CD_ID = 'PLR_ORGN'   AND OC.CD_VAL = P.PLR_ORGN_CD    /* 출신코드명 */
+          LEFT JOIN CMN_CD PC ON PC.CD_ID = 'POSN'       AND PC.CD_VAL = P.POSN_CD         /* 포지션명 */
+          LEFT JOIN CMN_CD RC ON RC.CD_ID = 'REPR_POSN'  AND RC.CD_VAL = P.REPR_POSN_CD    /* 대표포지션명 */
+          LEFT JOIN DRFT_SCUT_RPT SR ON SR.DRFT_PLR_ID = P.DRFT_PLR_ID AND SR.TM_ID = #{tmId}  /* 스카우팅 리포트 */
+          LEFT JOIN DRFT_BOARD BD    ON BD.DRFT_PLR_ID = P.DRFT_PLR_ID AND BD.DRFT_ID = P.DRFT_ID AND BD.TM_ID = #{tmId}  /* 드래프트 보드 */
+         WHERE P.DRFT_ID = #{drftId}
+         ORDER BY SR.EST_POT_ABLT DESC, P.DRFT_PLR_ID ASC
+    </select>
+
+    <select id="findPlayer" resultType="com.kbo.gm.domain.draft.dao.DrftPlrDao">
+        SELECT P.DRFT_PLR_ID              /* 드래프트 선수 ID */
+             , P.DRFT_ID                  /* 드래프트 ID */
+             , P.PLR_NM                   /* 선수명 */
+             , P.PLR_ENG_NM               /* 선수 영문명 */
+             , P.PLR_AGE                  /* 나이 */
+             , P.PLR_ORGN_CD              /* 출신코드 */
+             , OC.CD_NM  AS PLR_ORGN_NM  /* 출신 한국어명 */
+             , P.HS_NM                    /* 출신 고등학교 */
+             , P.UNIV_NM                  /* 출신 대학교 */
+             , P.PLR_HT                   /* 신장 */
+             , P.PLR_WT                   /* 체중 */
+             , P.PREV_REC                 /* 주요 기록 */
+             , P.POSN_CD                  /* 주 포지션코드 */
+             , PC.CD_NM  AS POSN_NM       /* 주 포지션명 */
+             , P.REPR_POSN_CD             /* 대표 포지션코드 */
+             , RC.CD_NM  AS REPR_POSN_NM  /* 대표 포지션명 */
+             , P.PLR_BAT_PTCH_HAND_CD     /* 투타코드 */
+             , P.ACT_OVRL_ABLT            /* 실제 현재 능력치 (내부 전용) */
+             , P.ACT_POT_ABLT             /* 실제 잠재 능력치 (내부 전용) */
+             , P.GRWTH_TEND               /* 성장 성향 */
+             , P.INJ_RSK                  /* 부상 위험도 */
+             , P.IS_PICK_YN               /* 지명 여부 */
+             , P.IS_EXCL_YN               /* 지명 제외 여부 */
+             , P.PLR_ID                   /* 입단 후 선수 ID */
+             , SR.EST_OVRL_ABLT           /* 추정 현재 능력치 */
+             , SR.EST_POT_ABLT            /* 추정 잠재 능력치 */
+             , SR.EST_RND                 /* 예상 지명 라운드 */
+             , SR.ACCRCY                  /* 스카우팅 정확도 */
+             , SR.GRADE                   /* 평가 등급 */
+             , SR.CMNT                    /* 스카우트 코멘트 */
+          FROM DRFT_PLR P  /* 드래프트 선수풀 */
+          LEFT JOIN CMN_CD OC ON OC.CD_ID = 'PLR_ORGN'  AND OC.CD_VAL = P.PLR_ORGN_CD  /* 출신코드명 */
+          LEFT JOIN CMN_CD PC ON PC.CD_ID = 'POSN'      AND PC.CD_VAL = P.POSN_CD       /* 포지션명 */
+          LEFT JOIN CMN_CD RC ON RC.CD_ID = 'REPR_POSN' AND RC.CD_VAL = P.REPR_POSN_CD  /* 대표포지션명 */
+          LEFT JOIN DRFT_SCUT_RPT SR ON SR.DRFT_PLR_ID = P.DRFT_PLR_ID AND SR.TM_ID = #{tmId}  /* 스카우팅 리포트 */
+         WHERE P.DRFT_PLR_ID = #{drftPlrId}
+    </select>
+
+    <insert id="insertPlayers">
+        INSERT INTO DRFT_PLR
+            (DRFT_ID, PLR_NM, PLR_ENG_NM, PLR_AGE, PLR_ORGN_CD, HS_NM, UNIV_NM,
+             PLR_HT, PLR_WT, PREV_REC,
+             POSN_CD, REPR_POSN_CD, PLR_BAT_PTCH_HAND_CD,
+             ACT_OVRL_ABLT, ACT_POT_ABLT, GRWTH_TEND, INJ_RSK, IS_PICK_YN, IS_EXCL_YN)
+        VALUES
+        <foreach collection="list" item="p" separator=",">
+            (#{p.drftId}, #{p.plrNm}, #{p.plrEngNm}, #{p.plrAge}, #{p.plrOrgnCd},
+             #{p.hsNm}, #{p.univNm}, #{p.plrHt}, #{p.plrWt}, #{p.prevRec},
+             #{p.posnCd}, #{p.reprPosnCd}, #{p.plrBatPtchHandCd},
+             #{p.actOvrlAblt}, #{p.actPotAblt}, #{p.grwthTend}, #{p.injRsk}, #{p.isPickYn}, #{p.isExclYn})
+        </foreach>
+    </insert>
+
+    <update id="markPlayerPicked">
+        UPDATE DRFT_PLR
+           SET IS_PICK_YN = 'Y'
+             , PLR_ID     = #{plrId}
+         WHERE DRFT_PLR_ID = #{drftPlrId}
+    </update>
+
+    <select id="findAvailablePlayersForAi" resultType="com.kbo.gm.domain.draft.dao.DrftPlrDao">
+        SELECT P.DRFT_PLR_ID   /* 드래프트 선수 ID */
+             , P.DRFT_ID       /* 드래프트 ID */
+             , P.PLR_NM        /* 선수명 */
+             , P.PLR_AGE       /* 나이 */
+             , P.PLR_ORGN_CD   /* 출신코드 */
+             , P.POSN_CD       /* 주 포지션코드 */
+             , P.REPR_POSN_CD  /* 대표 포지션코드 */
+             , P.ACT_OVRL_ABLT /* 실제 현재 능력치 */
+             , P.ACT_POT_ABLT  /* 실제 잠재 능력치 */
+             , P.GRWTH_TEND    /* 성장 성향 */
+             , P.INJ_RSK       /* 부상 위험도 */
+             , P.IS_PICK_YN    /* 지명 여부 */
+             , P.IS_EXCL_YN    /* 지명 제외 여부 */
+          FROM DRFT_PLR P  /* 드래프트 선수풀 */
+         WHERE P.DRFT_ID    = #{drftId}
+           AND P.IS_PICK_YN = 'N'
+           AND P.IS_EXCL_YN = 'N'
+         ORDER BY P.ACT_POT_ABLT DESC
+    </select>
+
+    <select id="countPickedByReprPosn" resultType="java.lang.Integer">
+        SELECT COUNT(*)
+          FROM DRFT_ORD O  /* 드래프트 지명 순서 */
+          JOIN DRFT_PLR P ON P.DRFT_PLR_ID = O.DRFT_PLR_ID  /* 드래프트 선수풀 */
+         WHERE O.DRFT_ID      = #{drftId}
+           AND O.TM_ID         = #{tmId}
+           AND O.PICK_STTS_CD  = 'PICKED'
+           AND P.REPR_POSN_CD  = #{reprPosnCd}
+    </select>
+
+    <!-- ──────────────────────────────────────────────────────── -->
+    <!-- Scouting reports                                        -->
+    <!-- ──────────────────────────────────────────────────────── -->
+
+    <insert id="insertScoutingReports">
+        INSERT INTO DRFT_SCUT_RPT
+            (DRFT_PLR_ID, TM_ID, EST_OVRL_ABLT, EST_POT_ABLT, EST_RND, ACCRCY, GRADE, CMNT)
+        VALUES
+        <foreach collection="list" item="r" separator=",">
+            (#{r.drftPlrId}, #{r.tmId}, #{r.estOvrlAblt}, #{r.estPotAblt},
+             #{r.estRnd}, #{r.accrcy}, #{r.grade}, #{r.cmnt})
+        </foreach>
+    </insert>
+
+    <!-- ──────────────────────────────────────────────────────── -->
+    <!-- Draft order                                             -->
+    <!-- ──────────────────────────────────────────────────────── -->
+
+    <select id="findOrder" resultType="com.kbo.gm.domain.draft.dao.DrftOrdDao">
+        SELECT O.DRFT_ID        /* 드래프트 ID */
+             , O.PICK_NO        /* 전체 픽 번호 */
+             , O.RND            /* 라운드 번호 */
+             , O.RND_PICK_NO    /* 라운드 내 픽 순서 */
+             , O.TM_ID          /* 지명 팀 ID */
+             , T.TM_KR_NM       /* 팀 한국어명 */
+             , T.TM_SHRT_KR_NM  /* 팀 한국어 약칭 */
+             , O.PICK_STTS_CD   /* 픽 상태코드 */
+             , O.DRFT_PLR_ID    /* 지명된 선수 ID */
+             , P.PLR_NM         /* 선수명 */
+             , P.POSN_CD        /* 포지션코드 */
+             , P.REPR_POSN_CD   /* 대표 포지션코드 */
+             , O.PLR_ID         /* 입단 후 선수 ID */
+          FROM DRFT_ORD O  /* 드래프트 지명 순서 */
+          JOIN TM T ON T.TM_ID = O.TM_ID                    /* 팀 기본정보 */
+          LEFT JOIN DRFT_PLR P ON P.DRFT_PLR_ID = O.DRFT_PLR_ID  /* 드래프트 선수풀 */
+         WHERE O.DRFT_ID = #{drftId}
+         ORDER BY O.PICK_NO ASC
+    </select>
+
+    <select id="findCurrentPick" resultType="com.kbo.gm.domain.draft.dao.DrftOrdDao">
+        SELECT O.DRFT_ID        /* 드래프트 ID */
+             , O.PICK_NO        /* 전체 픽 번호 */
+             , O.RND            /* 라운드 번호 */
+             , O.RND_PICK_NO    /* 라운드 내 픽 순서 */
+             , O.TM_ID          /* 지명 팀 ID */
+             , T.TM_KR_NM       /* 팀 한국어명 */
+             , T.TM_SHRT_KR_NM  /* 팀 한국어 약칭 */
+             , O.PICK_STTS_CD   /* 픽 상태코드 */
+          FROM DRFT_ORD O  /* 드래프트 지명 순서 */
+          JOIN TM T ON T.TM_ID = O.TM_ID  /* 팀 기본정보 */
+         WHERE O.DRFT_ID      = #{drftId}
+           AND O.PICK_STTS_CD = 'PENDING'
+         ORDER BY O.PICK_NO ASC
+         LIMIT 1
+    </select>
+
+    <insert id="insertOrders">
+        INSERT INTO DRFT_ORD
+            (DRFT_ID, PICK_NO, RND, RND_PICK_NO, TM_ID, PICK_STTS_CD)
+        VALUES
+        <foreach collection="list" item="o" separator=",">
+            (#{o.drftId}, #{o.pickNo}, #{o.rnd}, #{o.rndPickNo}, #{o.tmId}, #{o.pickSttsCd})
+        </foreach>
+    </insert>
+
+    <update id="updatePick">
+        UPDATE DRFT_ORD
+           SET PICK_STTS_CD = 'PICKED'
+             , DRFT_PLR_ID  = #{drftPlrId}
+             , PLR_ID        = #{plrId}
+         WHERE DRFT_ID = #{drftId}
+           AND PICK_NO  = #{pickNo}
+    </update>
+
+    <!-- ──────────────────────────────────────────────────────── -->
+    <!-- Draft board                                             -->
+    <!-- ──────────────────────────────────────────────────────── -->
+
+    <select id="findBoard" resultType="com.kbo.gm.domain.draft.dao.DrftBoardDao">
+        SELECT BD.DRFT_PLR_ID    /* 드래프트 선수 ID */
+             , BD.TM_ID          /* 팀 ID */
+             , BD.PRIO_ORD       /* 우선순위 */
+             , BD.DO_NOT_PICK    /* 지명 제외 여부 */
+             , BD.MEMO           /* 메모 */
+             , P.PLR_NM          /* 선수명 */
+             , P.POSN_CD         /* 주 포지션코드 */
+             , P.REPR_POSN_CD    /* 대표 포지션코드 */
+             , P.IS_PICK_YN      /* 지명 여부 */
+             , SR.EST_OVRL_ABLT  /* 추정 현재 능력치 */
+             , SR.EST_POT_ABLT   /* 추정 잠재 능력치 */
+             , SR.GRADE          /* 평가 등급 */
+          FROM DRFT_BOARD BD  /* 드래프트 보드 */
+          JOIN DRFT_PLR P ON P.DRFT_PLR_ID = BD.DRFT_PLR_ID                                    /* 드래프트 선수풀 */
+          LEFT JOIN DRFT_SCUT_RPT SR ON SR.DRFT_PLR_ID = BD.DRFT_PLR_ID AND SR.TM_ID = BD.TM_ID  /* 스카우팅 리포트 */
+         WHERE BD.DRFT_ID = #{drftId}
+           AND BD.TM_ID   = #{tmId}
+         ORDER BY BD.DO_NOT_PICK ASC, BD.PRIO_ORD ASC, BD.DRFT_PLR_ID ASC
+    </select>
+
+    <insert id="upsertBoardEntry">
+        INSERT INTO DRFT_BOARD (DRFT_ID, DRFT_PLR_ID, TM_ID, PRIO_ORD, DO_NOT_PICK, MEMO)
+        VALUES (#{drftId}, #{drftPlrId}, #{tmId}, #{prioOrd}, #{doNotPick}, #{memo})
+        ON DUPLICATE KEY UPDATE
+            PRIO_ORD    = VALUES(PRIO_ORD),
+            DO_NOT_PICK = VALUES(DO_NOT_PICK),
+            MEMO        = VALUES(MEMO)
+    </insert>
+
+    <delete id="deleteBoardEntry">
+        DELETE FROM DRFT_BOARD
+         WHERE DRFT_ID     = #{drftId}
+           AND DRFT_PLR_ID = #{drftPlrId}
+           AND TM_ID        = #{tmId}
+    </delete>
+
+    <!-- ──────────────────────────────────────────────────────── -->
+    <!-- Standings / Team list                                   -->
+    <!-- ──────────────────────────────────────────────────────── -->
+
+    <select id="findPrevSeasonStndOrder" resultType="java.lang.Long">
+        SELECT TM_ID
+          FROM STND
+         WHERE SSNT_YR = #{ssntYr}
+         ORDER BY STND_RNK ASC
+    </select>
+
+    <select id="findAllTeamIds" resultType="java.lang.Long">
+        SELECT TM_ID FROM TM ORDER BY TM_ID
+    </select>
+
+    <!-- ──────────────────────────────────────────────────────── -->
+    <!-- Game config                                             -->
+    <!-- ──────────────────────────────────────────────────────── -->
+
+    <select id="findUserTmId" resultType="java.lang.Long">
+        SELECT CFG_VAL FROM GAME_CFG WHERE CFG_KEY = 'USER_TM_ID' LIMIT 1
+    </select>
+
+    <!-- ──────────────────────────────────────────────────────── -->
+    <!-- Player signing (PLR / PLR_TM / PLR_TM_CNTRCT           -->
+    <!--                 / PLR_POSN / PLR_ABLT)                 -->
+    <!-- ──────────────────────────────────────────────────────── -->
+
+    <insert id="insertPlr" useGeneratedKeys="true" keyProperty="plrId" keyColumn="PLR_ID">
+        INSERT INTO PLR
+            (PLR_NM, PLR_BAT_PTCH_HAND_CD, PLR_DRFT_RND, PLR_DRFT_NO,
+             PLR_STTS_CD, PLR_OVRL_ABLT, PLR_POT_ABLT,
+             PLR_ANSL_SAL, PLR_FRGN_YN, TM_ID)
+        VALUES
+            (#{plrNm}, #{plrBatPtchHandCd}, #{plrDrftRnd}, #{plrDrftNo},
+             #{plrSttsCd}, #{plrOvrlAblt}, #{plrPotAblt},
+             #{plrAnslSal}, #{plrFrgnYn}, #{tmId})
+    </insert>
+
+    <insert id="insertPlrTm">
+        INSERT INTO PLR_TM (PLR_ID, TM_ID, TM_BGNG_DT)
+        VALUES (#{plrId}, #{tmId}, #{tmBgngDt})
+    </insert>
+
+    <insert id="insertPlrCntrct">
+        INSERT INTO PLR_TM_CNTRCT
+            (PLR_ID, TM_ID, FA_CNTRCT_BGNG_DT, FA_AMT, FA_CNTRCT_END_DT, REPR_POSN_CD, CNTRCT_TYPE_CD)
+        VALUES
+            (#{plrId}, #{tmId}, #{faCntrctBgngDt}, #{faAmt}, #{faCntrctEndDt}, #{reprPosnCd}, #{cntrctTypeCd})
+    </insert>
+
+    <insert id="insertPlrPosn">
+        INSERT INTO PLR_POSN (PLR_ID, POSN_CD, POSN_PRFC_ABLT)
+        VALUES (#{plrId}, #{posnCd}, #{posnPrfcAblt})
+    </insert>
+
+    <insert id="insertPlrAblts">
+        INSERT INTO PLR_ABLT (PLR_ID, ABLT_CD, ABLT_VAL)
+        VALUES
+        <foreach collection="list" item="a" separator=",">
+            (#{plrId}, #{a.abltCd}, #{a.abltVal})
+        </foreach>
+    </insert>
+
+    <insert id="insertPlrEnty">
+        INSERT INTO PLR_ENTY (PLR_ID, SSNT_YR, TM_ID, ENTY_LVL_CD, ENTY_DT)
+        VALUES (#{plrId}, #{ssntYr}, #{tmId}, #{entyLvlCd}, #{entyDt})
+    </insert>
+
+</mapper>

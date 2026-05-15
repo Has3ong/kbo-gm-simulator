@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kbo.gm.domain.season.mapper.GameResultMapper">
+
+    <!-- ===== 특정 날짜의 미완료 경기 목록 ===== -->
+    <select id="findGamesOnDate" resultType="map">
+        SELECT G.GAME_ID, G.HOME_TM_ID, G.AWAY_TM_ID, G.SSNT_YR, G.GAME_DT,
+               HT.TM_KR_NM AS HOME_TM_KR_NM, AT.TM_KR_NM AS AWAY_TM_KR_NM,
+               G.GAME_STTS_CD, G.STDM_ID
+        FROM   GAME G
+               JOIN TM HT ON HT.TM_ID = G.HOME_TM_ID
+               JOIN TM AT ON AT.TM_ID = G.AWAY_TM_ID
+        WHERE  G.SSNT_YR = #{ssntYr}
+          AND  G.GAME_DT = #{gameDt}
+          AND  G.GAME_STTS_CD != '03'
+        ORDER BY G.GAME_ID
+    </select>
+
+    <!-- ===== 팀 라인업 ===== -->
+    <select id="findLineup" resultType="map">
+        SELECT L.PLR_ID, L.BAT_ORD, L.POSN_CD,
+               P.PLR_NM, P.REPR_POSN_CD
+        FROM   TM_LINEUP L
+               JOIN PLR P ON P.PLR_ID = L.PLR_ID
+        WHERE  L.TM_ID = #{tmId}
+          AND  P.PLR_STTS_CD = 'AT'
+        ORDER BY L.BAT_ORD
+    </select>
+
+    <!-- ===== 선발 로테이션 ===== -->
+    <select id="findRotation" resultType="map">
+        SELECT R.PLR_ID, R.ROT_ORD,
+               P.PLR_NM
+        FROM   TM_ROTATION R
+               JOIN PLR P ON P.PLR_ID = R.PLR_ID
+        WHERE  R.TM_ID = #{tmId}
+          AND  P.PLR_STTS_CD = 'AT'
+        ORDER BY R.ROT_ORD
+        LIMIT 1
+    </select>
+
+    <!-- ===== 불펜 ===== -->
+    <select id="findBullpen" resultType="map">
+        SELECT B.PLR_ID, B.BULLPEN_ROLE_CD,
+               P.PLR_NM
+        FROM   TM_BULLPEN B
+               JOIN PLR P ON P.PLR_ID = B.PLR_ID
+        WHERE  B.TM_ID = #{tmId}
+          AND  P.PLR_STTS_CD = 'AT'
+    </select>
+
+    <!-- ===== 선수 피로도/컨디션 ===== -->
+    <select id="findPlrFatgCond" resultType="map">
+        SELECT FATG, COND
+        FROM   PLR_FATG_COND
+        WHERE  PLR_ID = #{plrId}
+          AND  SSNT_YR = #{ssntYr}
+    </select>
+
+    <!-- ===== 유저 팀 ID ===== -->
+    <select id="findUserTmId" resultType="java.lang.Long">
+        SELECT CFG_VAL FROM GAME_CFG WHERE CFG_KEY = 'USER_TM_ID' LIMIT 1
+    </select>
+
+    <!-- ===== 팀 시장 정보 ===== -->
+    <select id="findTeamMarketRow" resultType="map">
+        SELECT AVG_ATND_CNT, PPLT_RTG
+        FROM   TM_MKT_SSNT
+        WHERE  TM_ID  = #{tmId}
+          AND  SSNT_YR = #{ssntYr}
+    </select>
+
+    <!-- ===== 방송국 승리 수당 ===== -->
+    <select id="findBrdcstWinBonus" resultType="map">
+        SELECT B.WIN_BONUS
+        FROM   GAME_CFG C
+               JOIN BRDCST_SPNSR B ON B.BRDCST_CD = C.CFG_VAL
+        WHERE  C.CFG_KEY = 'BRDCST_SPNSR'
+        LIMIT 1
+    </select>
+
+    <!-- ===== 이벤트 배치 삽입 ===== -->
+    <insert id="insertEvntBatch">
+        INSERT INTO SSNT_EVNT (SSNT_YR, EVNT_DT, TM_ID, PLR_ID, EVNT_TYPE_CD, EVNT_TTLT, EVNT_CNTS, RD_YN)
+        VALUES
+        <foreach collection="list" item="e" separator=",">
+            (#{e.ssntYr}, #{e.evntDt}, #{e.tmId}, #{e.plrId}, #{e.evntTypeCd}, #{e.evntTtlt}, #{e.evntCnts}, '0')
+        </foreach>
+    </insert>
+
+</mapper>

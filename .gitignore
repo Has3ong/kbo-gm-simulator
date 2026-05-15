@@ -1,0 +1,46 @@
+# Claude Code local settings
+.claude/
+
+# Backend
+backend/target/
+backend/.mvn/
+backend/*.log
+backend/logs/
+*.class
+*.jar
+*.war
+*.ear
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.env.local
+frontend/.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+application-local.yml
+application-secret.yml
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db

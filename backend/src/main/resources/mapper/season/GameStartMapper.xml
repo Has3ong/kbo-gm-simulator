@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kbo.gm.domain.season.mapper.GameStartMapper">
+
+    <!-- ===== 팀 단건 조회 (유효성 검사용) ===== -->
+    <select id="findTeamById" resultType="com.kbo.gm.domain.season.dao.TmForStartDao">
+        SELECT
+            -- TM: 팀 기본 정보
+            T.TM_ID,
+            T.TM_KR_NM,
+            -- TM_STDM: 홈 구장 ID
+            TS.STDM_ID AS HOME_STDM_ID
+        FROM TM T
+            LEFT JOIN TM_STDM TS ON TS.TM_ID = T.TM_ID
+        WHERE T.TM_ID = #{tmId}
+        LIMIT 1
+    </select>
+
+    <!-- ===== 전체 팀 조회 (시즌 초기화용) ===== -->
+    <select id="findAllTeams" resultType="com.kbo.gm.domain.season.dao.TmForStartDao">
+        SELECT
+            -- TM: 팀 기본 정보
+            T.TM_ID,
+            T.TM_KR_NM,
+            -- TM_STDM: 홈 구장 ID
+            TS.STDM_ID AS HOME_STDM_ID
+        FROM TM T
+            LEFT JOIN TM_STDM TS ON TS.TM_ID = T.TM_ID
+        ORDER BY T.TM_ID
+    </select>
+
+    <!-- ===== 계약 중인 전체 선수 조회 (라인업·로테이션 생성용) ===== -->
+    <!-- 현재 유효한 계약(종료일 없거나 미래)을 가진 활동 선수만 조회 -->
+    <select id="findAllContractedPlayers" resultType="com.kbo.gm.domain.season.dao.PlrForStartDao">
+        SELECT
+            -- PLR: 선수 기본 정보
+            P.PLR_ID,
+            P.TM_ID,
+            P.PLR_OVRL_ABLT AS OVRL_ABLT,
+            -- PLR_TM_CNTRCT: 대표 포지션
+            PC.REPR_POSN_CD,
+            -- PLR_POSN: 주 포지션 (숙련도 최고 기준)
+            (SELECT PP.POSN_CD
+             FROM PLR_POSN PP
+             WHERE PP.PLR_ID = P.PLR_ID
+             ORDER BY PP.POSN_PRFC_ABLT DESC
+             LIMIT 1) AS POSN_CD
+        FROM PLR P
+            JOIN PLR_TM_CNTRCT PC ON PC.PLR_ID = P.PLR_ID
+                AND (PC.FA_CNTRCT_END_DT >= CURDATE() OR PC.FA_CNTRCT_END_DT IS NULL)
+        WHERE P.TM_ID IS NOT NULL
+          AND P.PLR_STTS_CD = 'AT'  -- 활동 선수만
+        ORDER BY P.TM_ID, P.PLR_OVRL_ABLT DESC
+    </select>
+
+    <!-- ===== SSNT 시즌 마스터 삽입 ===== -->
+    <insert id="insertSsnt">
+        INSERT INTO SSNT (
+            SSNT_YR, SSNT_STTS_CD,
+            SSNT_BGNG_DT, REG_SSNT_BGNG_DT, REG_SSNT_END_DT,
+            PSTSSNT_BGNG_DT, PSTSSNT_END_DT, SSNT_END_DT,
+            CUR_DT
+        ) VALUES (
+            #{ssntYr}, 'PRE',
+            #{ssntBgngDt}, #{regSsntBgngDt}, #{regSsntEndDt},
+            #{pstssntBgngDt}, #{pstssntEndDt}, #{ssntEndDt},
+            #{curDt}
+        )
+    </insert>
+
+    <!-- ===== GAME_CFG 키-값 저장 (UPSERT) ===== -->
+    <insert id="upsertGameCfg">
+        INSERT INTO GAME_CFG (CFG_KEY, CFG_VAL)
+        VALUES (#{cfgKey}, #{cfgVal})
+        ON DUPLICATE KEY UPDATE CFG_VAL = #{cfgVal}
+    </insert>
+
+    <!-- ===== STND 시즌 순위 배치 삽입 ===== -->
+    <!-- 시즌 시작 시 10개 팀을 0승 0패로 초기화 -->
+    <insert id="insertStndBatch">
+        INSERT INTO STND (TM_ID, SSNT_YR, W, L, T, STND_RNK)
+        VALUES
+        <foreach collection="list" item="s" separator=",">
+            (#{s.tmId}, #{s.ssntYr}, 0, 0, 0, #{s.rank})
+        </foreach>
+    </insert>
+
+    <!-- ===== PLR_ENTY 선수 엔트리 배치 삽입 ===== -->
+    <!-- 계약 선수 전원을 1군 엔트리로 초기화 -->
+    <insert id="insertEntyBatch">
+        INSERT INTO PLR_ENTY (PLR_ID, SSNT_YR, TM_ID, ENTY_LVL_CD, ENTY_DT)
+        VALUES
+        <foreach collection="list" item="e" separator=",">
+            (#{e.plrId}, #{e.ssntYr}, #{e.tmId}, '1', #{e.entyDt})
+        </foreach>
+    </insert>
+
+    <!-- ===== TM_LINEUP 타순 배치 삽입 ===== -->
+    <insert id="insertLineupBatch">
+        INSERT INTO TM_LINEUP (TM_ID, SSNT_YR, LINEUP_NO, PLR_ID, POSN_CD)
+        VALUES
+        <foreach collection="list" item="l" separator=",">
+            (#{l.tmId}, #{l.ssntYr}, #{l.lineupNo}, #{l.plrId}, #{l.posnCd})
+        </foreach>
+    </insert>
+
+    <!-- ===== TM_ROTATION 선발 로테이션 배치 삽입 ===== -->
+    <insert id="insertRotationBatch">
+        INSERT INTO TM_ROTATION (TM_ID, SSNT_YR, ROT_ORD, PLR_ID)
+        VALUES
+        <foreach collection="list" item="r" separator=",">
+            (#{r.tmId}, #{r.ssntYr}, #{r.rotOrd}, #{r.plrId})
+        </foreach>
+    </insert>
+
+    <!-- ===== TM_BULLPEN 불펜 역할 배치 삽입 ===== -->
+    <insert id="insertBullpenBatch">
+        INSERT INTO TM_BULLPEN (TM_ID, SSNT_YR, PLR_ID, ROLE_CD)
+        VALUES
+        <foreach collection="list" item="b" separator=",">
+            (#{b.tmId}, #{b.ssntYr}, #{b.plrId}, #{b.roleCd})
+        </foreach>
+    </insert>
+
+    <!-- ===== GAME 경기 일정 배치 삽입 ===== -->
+    <!-- 정규시즌 144경기 × 10팀 = 720경기 일괄 등록 -->
+    <insert id="insertGameBatch">
+        INSERT INTO GAME (SSNT_YR, GAME_DT, HOME_TM_ID, AWAY_TM_ID, STDM_ID, GAME_STTS_CD, GAME_TYPE_CD)
+        VALUES
+        <foreach collection="list" item="g" separator=",">
+            (#{g.ssntYr}, #{g.gameDt}, #{g.homeTmId}, #{g.awayTmId}, #{g.stdmId}, '01', 'REG')
+        </foreach>
+    </insert>
+
+    <!-- ===== SSNT_EVNT 시즌 이벤트 배치 삽입 ===== -->
+    <insert id="insertSsntEvntBatch">
+        INSERT INTO SSNT_EVNT (SSNT_YR, EVNT_DT, TM_ID, EVNT_TYPE_CD, EVNT_TTLT, EVNT_CNTS)
+        VALUES
+        <foreach collection="list" item="e" separator=",">
+            (#{e.ssntYr}, #{e.evntDt}, #{e.tmId}, #{e.evntTypeCd}, #{e.evntTtlt}, #{e.evntCnts})
+        </foreach>
+    </insert>
+
+</mapper>

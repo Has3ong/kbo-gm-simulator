@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kbo.gm.domain.staff.mapper.StffHireMapper">
+
+    <!-- ===== 후보 배치 삽입 ===== -->
+    <insert id="insertCandidates" useGeneratedKeys="true" keyProperty="candId">
+        INSERT INTO STFF_CAND (STFF_TYPE_CD, STFF_NM, STFF_EXP_YR, OVRL_RTG, SIGN_BONUS, ANSL_SAL)
+        VALUES
+        <foreach collection="list" item="c" separator=",">
+            (#{c.stffTypeCd}, #{c.stffNm}, #{c.stffExpYr}, #{c.ovrlRtg}, #{c.signBonus}, #{c.anslSal})
+        </foreach>
+    </insert>
+
+    <!-- ===== 후보 능력치 배치 삽입 ===== -->
+    <insert id="insertCandAbltBatch">
+        INSERT INTO STFF_CAND_ABLT (CAND_ID, STFF_ABLT_CD, STFF_ABLT_VAL) VALUES
+        <foreach collection="list" item="a" separator=",">
+            (#{a.candId}, #{a.stffAbltCd}, #{a.stffAbltVal})
+        </foreach>
+    </insert>
+
+    <!-- ===== 후보 목록 조회 ===== -->
+    <select id="findCandidates" resultType="map">
+        SELECT CAND_ID, STFF_TYPE_CD, STFF_NM, STFF_EXP_YR, OVRL_RTG, SIGN_BONUS, ANSL_SAL
+        FROM STFF_CAND
+        <if test="stffTypeCd != null and stffTypeCd != ''">
+            WHERE STFF_TYPE_CD = #{stffTypeCd}
+        </if>
+        ORDER BY OVRL_RTG DESC
+    </select>
+
+    <!-- ===== 단일 후보 조회 ===== -->
+    <select id="findCandById" resultType="map">
+        SELECT CAND_ID, STFF_TYPE_CD, STFF_NM, STFF_EXP_YR, OVRL_RTG, SIGN_BONUS, ANSL_SAL
+        FROM STFF_CAND
+        WHERE CAND_ID = #{candId}
+    </select>
+
+    <!-- ===== 후보 능력치 조회 ===== -->
+    <select id="findCandAblt" resultType="map">
+        SELECT CA.CAND_ID, CA.STFF_ABLT_CD, C.CD_NM AS STFF_ABLT_NM, CA.STFF_ABLT_VAL
+        FROM STFF_CAND_ABLT CA
+            LEFT JOIN CMN_CD C ON C.CD_ID = 'STFF_ABLT' AND C.CD_VAL = CA.STFF_ABLT_CD
+        WHERE CA.CAND_ID = #{candId}
+        ORDER BY CA.STFF_ABLT_VAL DESC
+    </select>
+
+    <!-- ===== 후보 전체 삭제 ===== -->
+    <delete id="clearCandidates">
+        DELETE FROM STFF_CAND
+    </delete>
+
+    <!-- ===== 현재 소속 스태프 조회 ===== -->
+    <select id="findCurrentStff" resultType="map">
+        SELECT S.STFF_ID, S.STFF_NM, S.STFF_TYPE_CD, S.STFF_EXP_YR, S.STFF_ANSL_SAL, S.STFF_STTS_CD
+        FROM STFF S
+        WHERE S.TM_ID = #{tmId}
+          AND S.STFF_TYPE_CD = #{stffTypeCd}
+          AND S.STFF_STTS_CD = 'AT'
+    </select>
+
+    <!-- ===== 유저 팀 ID ===== -->
+    <select id="findUserTmId" resultType="java.lang.Long">
+        SELECT CFG_VAL FROM GAME_CFG WHERE CFG_KEY = 'USER_TM_ID'
+    </select>
+
+    <!-- ===== 현재 시즌 연도 ===== -->
+    <select id="findCurrentSsntYr" resultType="java.lang.Integer">
+        SELECT SSNT_YR FROM SSNT ORDER BY SSNT_YR DESC LIMIT 1
+    </select>
+
+    <!-- ===== 현재 게임 날짜 ===== -->
+    <select id="findCurrentDate" resultType="java.lang.String">
+        SELECT CUR_DT FROM SSNT ORDER BY SSNT_YR DESC LIMIT 1
+    </select>
+
+    <!-- ===== 스태프 신규 삽입 ===== -->
+    <insert id="insertStff" useGeneratedKeys="true" keyProperty="stffId">
+        INSERT INTO STFF (STFF_NM, STFF_TYPE_CD, STFF_EXP_YR, STFF_ANSL_SAL, STFF_STTS_CD, TM_ID)
+        VALUES (#{stffNm}, #{stffTypeCd}, #{stffExpYr}, #{anslSal}, 'AT', #{tmId})
+    </insert>
+
+    <!-- ===== 스태프-팀 소속 삽입 ===== -->
+    <insert id="insertStffTm">
+        INSERT INTO STFF_TM (STFF_ID, TM_ID, STFF_BGNG_DT)
+        VALUES (#{stffId}, #{tmId}, #{bgngDt})
+    </insert>
+
+    <!-- ===== 스태프 계약 삽입 ===== -->
+    <insert id="insertStffCntrct">
+        INSERT INTO STFF_TM_CNTRCT (STFF_ID, TM_ID, CNTRCT_BGNG_DT, ANSL_SAL, SIGN_BONUS, CNTRCT_END_DT)
+        VALUES (#{stffId}, #{tmId}, #{bgngDt}, #{anslSal}, #{signBonus},
+                DATE_ADD(#{bgngDt}, INTERVAL 1 YEAR))
+    </insert>
+
+    <!-- ===== 스태프 능력치 배치 삽입 ===== -->
+    <insert id="insertStffAbltBatch">
+        INSERT INTO STFF_ABLT (STFF_ID, STFF_ABLT_CD, STFF_ABLT_VAL) VALUES
+        <foreach collection="list" item="a" separator=",">
+            (#{a.stffId}, #{a.stffAbltCd}, #{a.stffAbltVal})
+        </foreach>
+    </insert>
+
+    <!-- ===== 기존 스태프 해임 (종료일 설정 + FA 상태) ===== -->
+    <update id="releaseStff">
+        UPDATE STFF SET STFF_STTS_CD = 'FA', TM_ID = NULL
+        WHERE TM_ID = #{tmId} AND STFF_TYPE_CD = #{stffTypeCd} AND STFF_STTS_CD = 'AT'
+    </update>
+
+    <!-- ===== 계약금 차감 ===== -->
+    <update id="deductSignBonus">
+        INSERT INTO TM_FNC_SSNT (TM_ID, SSNT_YR, STFF_COST)
+        VALUES (#{tmId}, #{ssntYr}, #{amount})
+        ON DUPLICATE KEY UPDATE
+            STFF_COST = COALESCE(STFF_COST, 0) + VALUES(STFF_COST),
+            CUR_CASH  = COALESCE(CUR_CASH, 0)  - VALUES(STFF_COST)
+    </update>
+
+    <!-- ===== GAME_CFG UPSERT ===== -->
+    <insert id="upsertCfg">
+        INSERT INTO GAME_CFG (CFG_KEY, CFG_VAL)
+        VALUES (#{cfgKey}, #{cfgVal})
+        ON DUPLICATE KEY UPDATE CFG_VAL = #{cfgVal}
+    </insert>
+
+    <!-- ===== GAME_CFG 조회 ===== -->
+    <select id="findCfgVal" resultType="java.lang.String">
+        SELECT CFG_VAL FROM GAME_CFG WHERE CFG_KEY = #{cfgKey}
+    </select>
+
+    <!-- ===== 이벤트 삽입 ===== -->
+    <insert id="insertEvnt">
+        INSERT INTO SSNT_EVNT (SSNT_YR, EVNT_DT, TM_ID, EVNT_TYPE_CD, EVNT_TTLT, EVNT_CNTS)
+        VALUES (#{evnt.ssntYr}, #{evnt.evntDt}, #{evnt.tmId}, #{evnt.evntTypeCd},
+                #{evnt.evntTtlt}, #{evnt.evntCnts})
+    </insert>
+
+    <!-- ===== 전체 팀 목록 ===== -->
+    <select id="findAllTmIds" resultType="map">
+        SELECT TM_ID, TM_KR_NM AS TM_NM FROM TM ORDER BY TM_ID
+    </select>
+
+    <!-- ===== 능력치 코드 목록 ===== -->
+    <select id="findAbltCodes" resultType="map">
+        SELECT CD_VAL, CD_NM FROM CMN_CD WHERE CD_ID = #{cdId} ORDER BY CD_VAL
+    </select>
+
+</mapper>

@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kbo.gm.domain.record.mapper.RecordMapper">
+
+    <select id="findBatterStats" resultType="com.kbo.gm.domain.record.dao.BatrSsntRecDao">
+        SELECT R.PLR_ID, P.PLR_NM, R.SSNT_YR,
+               T.TM_ID, T.TM_KR_NM,
+               R.PA, R.AB, R.H, R.DOBL, R.TRPL, R.HR, R.RBI, R.R,
+               R.BB, R.IBB, R.SO, R.SB, R.CS, R.HBP, R.SAC, R.SF, R.GIDP,
+               CASE WHEN R.AB > 0 THEN ROUND(R.H / R.AB, 3) ELSE 0 END AS BA,
+               CASE WHEN (R.AB + R.BB + R.HBP + R.SF) > 0
+                        THEN ROUND((R.H + R.BB + R.HBP) / (R.AB + R.BB + R.HBP + R.SF), 3)
+                   ELSE 0 END AS OBP,
+               CASE WHEN R.AB > 0
+                        THEN ROUND((R.H + R.DOBL + 2*R.TRPL + 3*R.HR) / R.AB, 3)
+                   ELSE 0 END AS SLG,
+               CASE WHEN R.AB > 0
+                        THEN ROUND(
+                                   (R.H + R.BB + R.HBP) / NULLIF(R.AB + R.BB + R.HBP + R.SF, 0)
+                                   + (R.H + R.DOBL + 2*R.TRPL + 3*R.HR) / NULLIF(R.AB, 0), 3)
+                   ELSE 0 END AS OPS
+        FROM PLR_BATR_SSNT_REC R
+                 JOIN PLR P ON P.PLR_ID = R.PLR_ID
+                 LEFT JOIN (
+            SELECT PLR_ID, MIN(TM_ID) AS TM_ID
+            FROM PLR_BATR_TM_SSNT_REC
+            GROUP BY PLR_ID
+        ) PT ON PT.PLR_ID = R.PLR_ID
+                 LEFT JOIN TM T ON T.TM_ID = PT.TM_ID
+        <where>
+            <if test="ssntYr != null">AND R.SSNT_YR = #{ssntYr}</if>
+            <if test="tmId != null">AND PT.TM_ID = #{tmId}</if>
+        </where>
+        ORDER BY R.HR DESC, R.H DESC
+    </select>
+
+    <select id="findPitcherStats" resultType="com.kbo.gm.domain.record.dao.PtchSsntRecDao">
+        SELECT R.PLR_ID, P.PLR_NM, R.SSNT_YR,
+               T.TM_ID, T.TM_KR_NM,
+               R.IP_OUT, R.BF, R.H, R.DOBL, R.TRPL, R.HR,
+               R.R, R.ER, R.BB, R.IBB, R.SO, R.HBP,
+               R.W, R.L, R.SV, R.HLD, R.BSV, R.CG, R.SHO, R.PITCHES,
+               CASE WHEN R.IP_OUT > 0 THEN ROUND(R.ER * 27.0 / R.IP_OUT, 2) ELSE 0 END AS ERA,
+               CASE WHEN R.IP_OUT > 0 THEN ROUND((R.BB + R.H) * 3.0 / R.IP_OUT, 2) ELSE 0 END AS WHIP,
+               CASE WHEN R.IP_OUT > 0 THEN ROUND(R.SO * 27.0 / R.IP_OUT, 2) ELSE 0 END AS K_PER9,
+               CASE WHEN R.IP_OUT > 0 THEN ROUND(R.BB * 27.0 / R.IP_OUT, 2) ELSE 0 END AS BB_PER9
+        FROM PLR_PTCH_SSNT_REC R
+                 JOIN PLR P ON P.PLR_ID = R.PLR_ID
+                 LEFT JOIN (
+            SELECT PLR_ID, MIN(TM_ID) AS TM_ID
+            FROM PLR_PTCH_TM_SSNT_REC
+            GROUP BY PLR_ID
+        ) PT ON PT.PLR_ID = R.PLR_ID
+                 LEFT JOIN TM T ON T.TM_ID = PT.TM_ID
+        <where>
+            <if test="ssntYr != null">AND R.SSNT_YR = #{ssntYr}</if>
+            <if test="tmId != null">AND PT.TM_ID = #{tmId}</if>
+        </where>
+        ORDER BY ERA ASC, R.W DESC
+    </select>
+
+</mapper>
