@@ -116,6 +116,10 @@ public class TmService {
         return tmMapper.findStdmExpnCosts().stream().map(StdmExpnCostResponse::from).toList();
     }
 
+    public List<TmFinLogResponse> findFinanceLog(Long tmId) {
+        return tmMapper.findFinanceLog(tmId).stream().map(TmFinLogResponse::from).toList();
+    }
+
     @Transactional
     public void expandStadium(Long tmId, StdmExpnRequest req) {
         if (tmMapper.countOngoingExpn(tmId) > 0)

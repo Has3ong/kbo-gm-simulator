@@ -31,17 +31,20 @@ public class RosterConfirmService {
             throw new IllegalStateException("유저 팀 정보 또는 시즌 정보를 찾을 수 없습니다.");
         }
 
-        // 선수 목록 (계약 중인 활성 선수)
+        // 선수 목록 — POSN_CD: PLR_POSN 최고 숙련도 포지션, REPR_POSN_CD: 투수/야수 구분용
         List<Map<String, Object>> players = jdbcTemplate.queryForList(
-            "SELECT P.PLR_ID, P.PLR_NM, P.REPR_POSN_CD, P.PLR_OVRL_ABLT, P.PLR_STTS_CD, " +
-            "  (SELECT CNTRCT_TYPE_CD FROM PLR_TM_CNTRCT " +
-            "   WHERE PLR_ID = P.PLR_ID AND TM_ID = ? " +
-            "   ORDER BY CNTRCT_BGNG_DT DESC LIMIT 1) AS CNTRCT_TYPE_CD, " +
-            "  COALESCE(E.ENTY_LVL_CD, '2') AS ENTY_LVL_CD " +
+            "SELECT P.PLR_ID, P.PLR_NM, P.PLR_OVRL_ABLT, P.PLR_POT_ABLT, P.PLR_STTS_CD, P.PLR_FRGN_YN, " +
+            "  COALESCE(C.REPR_POSN_CD, '9') AS REPR_POSN_CD, " +
+            "  COALESCE(C.CNTRCT_TYPE_CD, '') AS CNTRCT_TYPE_CD, " +
+            "  COALESCE(E.ENTY_LVL_CD, '2') AS ENTY_LVL_CD, " +
+            "  ( SELECT PP.POSN_CD FROM PLR_POSN PP " +
+            "    WHERE PP.PLR_ID = P.PLR_ID " +
+            "    ORDER BY PP.POSN_PRFC_ABLT DESC LIMIT 1 ) AS POSN_CD " +
             "FROM PLR P " +
+            "LEFT JOIN PLR_TM_CNTRCT C ON C.PLR_ID = P.PLR_ID AND C.TM_ID = ? " +
             "LEFT JOIN PLR_ENTY E ON E.PLR_ID = P.PLR_ID AND E.TM_ID = ? AND E.SSNT_YR = ? " +
             "WHERE P.TM_ID = ? AND P.PLR_STTS_CD = 'AT' " +
-            "ORDER BY P.REPR_POSN_CD, P.PLR_OVRL_ABLT DESC",
+            "ORDER BY COALESCE(C.REPR_POSN_CD,'9'), P.PLR_OVRL_ABLT DESC",
             userTmId, userTmId, ssntYr, userTmId);
 
         // 현재 라인업
@@ -61,6 +64,27 @@ public class RosterConfirmService {
             "SELECT TM_ID, SSNT_YR, PLR_ID, ROLE_CD " +
             "FROM TM_BULLPEN WHERE TM_ID = ? AND SSNT_YR = ?",
             userTmId, ssntYr);
+
+        // 선수 능력치 맵 (PLR_ID → 능력치 목록)
+        if (!players.isEmpty()) {
+            List<Long> plrIds = players.stream()
+                .map(p -> ((Number) p.get("PLR_ID")).longValue())
+                .toList();
+            String inClause = plrIds.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(","));
+            List<Map<String, Object>> ablts = jdbcTemplate.queryForList(
+                "SELECT PLR_ID, ABLT_CD, ABLT_VAL FROM PLR_ABLT WHERE PLR_ID IN (" + inClause + ")");
+            java.util.Map<Long, java.util.Map<String, Integer>> abltMap = new java.util.HashMap<>();
+            for (Map<String, Object> a : ablts) {
+                long pid = ((Number) a.get("PLR_ID")).longValue();
+                String cd = (String) a.get("ABLT_CD");
+                int val = ((Number) a.get("ABLT_VAL")).intValue();
+                abltMap.computeIfAbsent(pid, k -> new java.util.LinkedHashMap<>()).put(cd, val);
+            }
+            for (Map<String, Object> p : players) {
+                long pid = ((Number) p.get("PLR_ID")).longValue();
+                p.put("ABLTS", abltMap.getOrDefault(pid, java.util.Collections.emptyMap()));
+            }
+        }
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("players",         players);

@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { playerApi } from '../api/playerApi'
+import { playerApi, type PlrSearchParams } from '../api/playerApi'
 
 export const playerKeys = {
   injuryHistory: (plrId: number) => ['players', plrId, 'injury-history'] as const,
+  growthLog: (plrId: number) => ['player', plrId, 'growth-log'] as const,
   all: ['players'] as const,
   filtered: (params?: { tmId?: number; plrSttsCd?: string }) => ['players', params] as const,
   one: (plrId: number) => ['players', plrId] as const,
@@ -182,17 +183,33 @@ export function usePlrEdit(plrId: number, onSuccess?: () => void) {
   })
 }
 
-export function useReleaseForeignPlayer(plrId: number, onSuccess?: () => void) {
+export function usePlrGrowthLog(plrId: number) {
+  return useQuery({
+    queryKey: playerKeys.growthLog(plrId),
+    queryFn: () => playerApi.getGrowthLog(plrId),
+    enabled: plrId > 0,
+  })
+}
+
+export function usePlayerSearch(params: PlrSearchParams, enabled = true) {
+  return useQuery({
+    queryKey: ['players', 'search', params],
+    queryFn: () => playerApi.search(params),
+    enabled,
+  })
+}
+
+export function useReleaseForeignPlayer(plrId: number, onSuccess?: (data: import('../api/playerApi').FrgnPlrReleaseResult) => void) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: () => playerApi.releaseForeign(plrId),
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['players'] })
       qc.invalidateQueries({ queryKey: ['teams'] })
       qc.invalidateQueries({ queryKey: ['seasons'] })
       qc.invalidateQueries({ queryKey: ['frgnPlr'] })
       qc.invalidateQueries({ queryKey: ['rosterConfirm'] })
-      onSuccess?.()
+      onSuccess?.(data)
     },
   })
 }

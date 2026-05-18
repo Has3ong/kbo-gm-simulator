@@ -2,19 +2,23 @@ import { Link as RouterLink } from 'react-router-dom'
 import {
   Box, Typography, Grid, Paper, Table, TableBody, TableRow, TableCell, TableHead,
   CircularProgress, Chip, Divider, Tabs, Tab, ToggleButtonGroup, ToggleButton,
-  Button, IconButton, Tooltip,
+  Button, IconButton, Tooltip, TableContainer,
 } from '@mui/material'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import UpgradeIcon from '@mui/icons-material/Upgrade'
 import StadiumIcon from '@mui/icons-material/Stadium'
+import LocalHospitalIcon from '@mui/icons-material/LocalHospital'
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
-  ResponsiveContainer, Legend,
+  LineChart, Line, AreaChart, Area, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
+  ResponsiveContainer, Legend, Sankey,
 } from 'recharts'
 import { useTeamDetailPage } from './TeamDetailPageHooks'
 import { formatSalary } from '../../utils/format'
 import FcltyUpgrModal from '../../components/FcltyUpgrModal'
 import StdmExpnModal from '../../components/StdmExpnModal'
+import { REPR_POSN_LABEL, PLR_STTS_LABEL } from '../../types/player'
+import { STFF_TYPE_LABEL } from '../../types/staff'
 
 const STATION_COLORS: Record<string, string> = {
   SBS: '#2563EB', KBS: '#DC2626', MBC: '#16A34A',
@@ -37,14 +41,21 @@ const FCLTY_ICON: Record<string, string> = {
   TRNG: '🏋️', YUTH: '🌱', ANLY: '📊', SCTG: '🔭', CAFE: '🍽️', GRSS: '🌿',
 }
 
+const LOG_TYPE_LABEL: Record<string, string> = { INCOME: '수입', EXPENSE: '지출' }
+const LOG_CTGR_LABEL: Record<string, string> = {
+  SPRING_CAMP: '스프링 캠프', FCLTY_UPGR: '시설 업그레이드', STDM_EXP: '경기장 증축',
+  TICKET: '입장권', SPONSOR: '스폰서', BROADCAST: '방송', SALARY: '연봉', OTHER: '기타',
+}
+
 export default function TeamDetailPage() {
   const {
-    team, finance, financeHistory, facilities, facilityUpgrades, fcltyUpgrCosts,
+    team, finance, financeHistory, financeLog, facilities, facilityUpgrades, fcltyUpgrCosts,
     market, standingsHistory, stadium, stdmExpnHistory, stdmExpnCosts,
     broadcaster, isLoading, ssntYr, formatMoney, FCLTY_LVL_LABEL,
     isUserTeam, tabIndex, setTabIndex, financeSubTab, setFinanceSubTab,
     financeViewMode, setFinanceViewMode,
     upgrTarget, setUpgrTarget, expnOpen, setExpnOpen, tmIdNum,
+    teamPlayers, teamStaffs,
   } = useTeamDetailPage()
 
   if (isLoading) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 6 }}><CircularProgress /></Box>
@@ -100,6 +111,8 @@ export default function TeamDetailPage() {
         <Tab label="재정" />
         <Tab label="시설 이력" />
         <Tab label="팬덤" />
+        <Tab label="선수" />
+        <Tab label="스태프" />
       </Tabs>
 
       {/* 현황 탭 */}
@@ -324,21 +337,57 @@ export default function TeamDetailPage() {
           >
             <Tab label="재정 요약" />
             <Tab label="재정 이력" />
+            <Tab label="재정 상세 이력" />
           </Tabs>
 
           {financeSubTab === 0 && (
             finance ? (
-              <Table size="small" sx={{ maxWidth: 480 }}>
-                <TableBody>
-                  <FinanceRow label="보유 현금" value={formatMoney(finance.curCash)} />
-                  <FinanceRow label="선수단 예산" value={formatMoney(finance.plrSalBdgt)} />
-                  <FinanceRow label="현재 연봉 총액" value={formatMoney(finance.curPlrSalCost)} />
-                  <FinanceRow label="입장 수익" value={formatMoney(finance.tcktRev)} />
-                  <FinanceRow label="방송 수익" value={formatMoney(finance.bcstRev)} />
-                  <FinanceRow label="스폰서 수익" value={formatMoney(finance.spnsRev)} />
-                  <FinanceRow label="부채" value={formatMoney(finance.debt)} />
-                </TableBody>
-              </Table>
+              <Grid container spacing={3}>
+                {/* 좌측: 수입/보유 현황 */}
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Paper variant="outlined" sx={{ p: 2 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1, color: 'success.main' }}>보유 현황</Typography>
+                    <Table size="small">
+                      <TableBody>
+                        <FinanceRow label="보유 현금" value={formatMoney(finance.curCash)} bold hint="실시간" />
+                      </TableBody>
+                    </Table>
+                    <Divider sx={{ my: 1 }} />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1, color: 'success.main' }}>수입 (당해 누계)</Typography>
+                    <Table size="small">
+                      <TableBody>
+                        <FinanceRow label="입장 수익" value={formatMoney(finance.tcktRev)} />
+                        <FinanceRow label="방송 수익" value={formatMoney(finance.bcstRev)} />
+                        <FinanceRow label="방송 수당" value={formatMoney(finance.bcstBonusYtd)} hint="WIN_BONUS × 승수" />
+                        <FinanceRow label="스폰서 수익" value={formatMoney(finance.spnsRev)} />
+                        <FinanceRow
+                          label="수입 합계"
+                          value={formatMoney((finance.tcktRev ?? 0) + (finance.bcstRev ?? 0) + (finance.bcstBonusYtd ?? 0) + (finance.spnsRev ?? 0))}
+                          bold
+                        />
+                      </TableBody>
+                    </Table>
+                  </Paper>
+                </Grid>
+                {/* 우측: 지출 현황 */}
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Paper variant="outlined" sx={{ p: 2 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1, color: 'error.main' }}>지출 현황</Typography>
+                    <Table size="small">
+                      <TableBody>
+                        <FinanceRow label="선수단 연봉 총액" value={formatMoney(finance.plrActualSal)} hint="활성 선수" />
+                        <FinanceRow label="코치 연봉 총액" value={formatMoney(finance.coachActualSal)} hint="감독·코치" />
+                        <FinanceRow
+                          label="현재 연봉 총액"
+                          value={formatMoney((finance.plrActualSal ?? 0) + (finance.coachActualSal ?? 0))}
+                          bold
+                        />
+                        <FinanceRow label="부채" value={formatMoney(finance.debt)} />
+                      </TableBody>
+                    </Table>
+                  </Paper>
+                </Grid>
+              </Grid>
             ) : (
               <Typography variant="body2" sx={{ color: 'text.secondary' }}>재정 정보 없음</Typography>
             )
@@ -346,7 +395,7 @@ export default function TeamDetailPage() {
 
           {financeSubTab === 1 && (
             <>
-              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.5 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1.5, mb: 1.5, flexWrap: 'wrap' }}>
                 <ToggleButtonGroup size="small" exclusive value={financeViewMode}
                   onChange={(_, v) => { if (v) setFinanceViewMode(v) }}>
                   <ToggleButton value="table">표</ToggleButton>
@@ -384,6 +433,45 @@ export default function TeamDetailPage() {
                 <FinanceChart data={financeHistory} ciClr={ciClr} />
               )}
             </>
+          )}
+
+          {financeSubTab === 2 && (
+            financeLog.length === 0 ? (
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>재정 이력 없음</Typography>
+            ) : (
+              <Box sx={{ overflowX: 'auto' }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: 'grey.50' }}>
+                      {['날짜', '시즌', '구분', '카테고리', '금액', '메모'].map((h, i) => (
+                        <TableCell key={h} sx={{ fontWeight: 'bold' }} align={i >= 4 ? 'right' : 'left'}>{h}</TableCell>
+                      ))}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {financeLog.map((log) => (
+                      <TableRow key={log.logId} hover>
+                        <TableCell>{log.logDt}</TableCell>
+                        <TableCell>{log.ssntYr}년</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={LOG_TYPE_LABEL[log.logTypeCd] ?? log.logTypeCd}
+                            size="small"
+                            color={log.logTypeCd === 'INCOME' ? 'success' : 'error'}
+                            sx={{ height: 18, fontSize: 10 }}
+                          />
+                        </TableCell>
+                        <TableCell>{LOG_CTGR_LABEL[log.logCtgrCd] ?? log.logCtgrCd}</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold', color: log.logTypeCd === 'INCOME' ? 'success.main' : 'error.main' }}>
+                          {log.logTypeCd === 'INCOME' ? '+' : '-'}{log.amount.toLocaleString()}만원
+                        </TableCell>
+                        <TableCell align="right" sx={{ color: 'text.secondary', fontSize: 12 }}>{log.memo ?? '-'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Box>
+            )
           )}
         </Paper>
       )}
@@ -445,6 +533,122 @@ export default function TeamDetailPage() {
         </Paper>
       )}
 
+      {/* 선수 탭 */}
+      {tabIndex === 4 && (
+        <TableContainer component={Paper} variant="outlined">
+          <Table size="small">
+            <TableHead sx={{ bgcolor: 'grey.50' }}>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 'bold' }}>이름</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>포지션</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 'bold' }}>종합능력치</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 'bold' }}>상태</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 'bold' }}>연봉</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {teamPlayers.map((p) => (
+                <TableRow key={p.plrId} hover>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <RouterLink to={`/players/${p.plrId}`} style={{ fontWeight: 'bold', color: 'inherit', textDecoration: 'none' }}>
+                        {p.plrNm}
+                      </RouterLink>
+                      {p.plrFrgnYn === '1' && (
+                        <Box component="span" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>(외)</Box>
+                      )}
+                      {p.plrSttsCd === 'INJ' && (
+                        <Tooltip
+                          title={
+                            p.injElapsedDays != null
+                              ? (p.injElapsedDays >= 30 ? `중부상(${p.injElapsedDays}일 경과)` : `경부상(${p.injElapsedDays}일 경과)`)
+                              : '부상'
+                          }
+                          arrow
+                        >
+                          <LocalHospitalIcon
+                            sx={{
+                              fontSize: 16,
+                              color: p.injElapsedDays != null && p.injElapsedDays >= 30 ? 'error.main' : 'warning.main',
+                            }}
+                          />
+                        </Tooltip>
+                      )}
+                    </Box>
+                  </TableCell>
+                  <TableCell>{REPR_POSN_LABEL[p.reprPosnCd ?? ''] ?? '-'}</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 'bold' }}>{p.plrOvrlAblt ?? '-'}</TableCell>
+                  <TableCell align="center">
+                    <Chip
+                      label={PLR_STTS_LABEL[p.plrSttsCd ?? ''] ?? '-'}
+                      size="small"
+                      color={p.plrSttsCd === 'AT' ? 'success' : p.plrSttsCd === 'INJ' ? 'error' : 'default'}
+                    />
+                  </TableCell>
+                  <TableCell align="right">
+                    {(() => {
+                      const { display, tooltip } = formatSalary(p.plrAnslSal ?? null)
+                      return (
+                        <Tooltip title={tooltip} placement="left" arrow>
+                          <span>{display}</span>
+                        </Tooltip>
+                      )
+                    })()}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+
+      {/* 스태프 탭 */}
+      {tabIndex === 5 && (
+        <TableContainer component={Paper} variant="outlined">
+          <Table size="small">
+            <TableHead sx={{ bgcolor: 'grey.50' }}>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 'bold' }}>이름</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>직종</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 'bold' }}>경력</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 'bold' }}>연봉(만원)</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {teamStaffs.map((s) => (
+                <TableRow key={s.stffId} hover>
+                  <TableCell>
+                    {s.stffNm}
+                    {s.stffFrgnYn === '1' && (
+                      <Box component="span" sx={{ color: 'text.secondary', fontSize: '0.75rem', ml: 0.5 }}>(외)</Box>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={STFF_TYPE_LABEL[s.stffTypeCd ?? ''] ?? '-'}
+                      size="small"
+                      color={
+                        s.stffTypeCd === 'MGR' ? 'primary'
+                        : s.stffTypeCd === 'COACH' ? 'secondary'
+                        : s.stffTypeCd === 'SCUT' ? 'success'
+                        : s.stffTypeCd === 'MED' ? 'warning'
+                        : 'default'
+                      }
+                    />
+                  </TableCell>
+                  <TableCell align="center">
+                    {s.stffExpYr != null ? `${s.stffExpYr}년` : '-'}
+                  </TableCell>
+                  <TableCell align="right">
+                    {s.stffAnslSal?.toLocaleString() ?? '-'}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+
       {/* 시설 업그레이드 다이얼로그 */}
       <FcltyUpgrModal
         open={upgrTarget != null}
@@ -487,11 +691,14 @@ function StdmRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-function FinanceRow({ label, value }: { label: string; value: string }) {
+function FinanceRow({ label, value, hint, bold }: { label: string; value: string; hint?: string; bold?: boolean }) {
   return (
-    <TableRow>
-      <TableCell sx={{ color: 'text.secondary', border: 'none', py: 0.5 }}>{label}</TableCell>
-      <TableCell align="right" sx={{ fontWeight: 'bold', border: 'none', py: 0.5 }}>{value}</TableCell>
+    <TableRow sx={bold ? { bgcolor: 'action.hover' } : undefined}>
+      <TableCell sx={{ color: 'text.secondary', border: 'none', py: 0.5 }}>
+        {label}
+        {hint && <Typography component="span" variant="caption" sx={{ color: 'text.disabled', ml: 0.5 }}>({hint})</Typography>}
+      </TableCell>
+      <TableCell align="right" sx={{ fontWeight: bold ? 'bold' : 'normal', border: 'none', py: 0.5, fontSize: bold ? '0.95rem' : undefined }}>{value}</TableCell>
     </TableRow>
   )
 }
@@ -506,31 +713,160 @@ function BrdcstDetail({ label, value }: { label: string; value: string }) {
 }
 
 interface FinanceChartProps {
-  data: Array<{ ssntYr?: number; curCash?: number | null; plrSalBdgt?: number | null; tcktRev?: number | null; bcstRev?: number | null }>
+  data: Array<{
+    ssntYr?: number
+    curCash?: number | null
+    plrSalBdgt?: number | null
+    tcktRev?: number | null
+    bcstRev?: number | null
+    spnsRev?: number | null
+    plrSalCost?: number | null
+    stffCost?: number | null
+    oprCost?: number | null
+  }>
   ciClr: string
 }
 
+const yTickFmt = (v: number) => v >= 10000 ? `${Math.round(v / 10000)}억` : `${v}만`
+const tooltipFmt = (value: unknown) => [`${Number(value).toLocaleString()}만원`]
+
 function FinanceChart({ data, ciClr }: FinanceChartProps) {
-  const chartData = [...data].reverse().map((f) => ({
+  const sorted = [...data].reverse()
+
+  // 차트 1 & 2: 수입 항목별 데이터
+  const incomeData = sorted.map((f) => ({
     year: `${f.ssntYr}년`,
-    보유현금: f.curCash ?? 0,
-    선수단예산: f.plrSalBdgt ?? 0,
     입장수익: f.tcktRev ?? 0,
     방송수익: f.bcstRev ?? 0,
+    스폰서수익: f.spnsRev ?? 0,
   }))
+
+  // 차트 3: Sankey — 가장 최근 시즌 1개
+  const latest = sorted[sorted.length - 1]
+  const sankeySection = (() => {
+    if (!latest) return null
+
+    const tcktRev = latest.tcktRev ?? 0
+    const bcstRev = latest.bcstRev ?? 0
+    const spnsRev = latest.spnsRev ?? 0
+    const totalRev = tcktRev + bcstRev + spnsRev
+    const plrSalCost = latest.plrSalCost ?? 0
+    const stffCost = latest.stffCost ?? 0
+    const oprCost = latest.oprCost ?? 0
+
+    if (totalRev === 0) {
+      return (
+        <Typography variant="body2" sx={{ color: 'text.secondary', py: 4, textAlign: 'center' }}>
+          Sankey 표시를 위한 데이터가 부족합니다.
+        </Typography>
+      )
+    }
+
+    const sankeyData = {
+      nodes: [
+        { name: '수입 총계' },
+        { name: '입장수익' },
+        { name: '방송수익' },
+        { name: '스폰서수익' },
+        { name: '선수단연봉' },
+        { name: '스태프비용' },
+        { name: '운영비' },
+      ],
+      links: [
+        ...(tcktRev > 0 ? [{ source: 1, target: 0, value: tcktRev }] : []),
+        ...(bcstRev > 0 ? [{ source: 2, target: 0, value: bcstRev }] : []),
+        ...(spnsRev > 0 ? [{ source: 3, target: 0, value: spnsRev }] : []),
+        ...(plrSalCost > 0 ? [{ source: 0, target: 4, value: plrSalCost }] : []),
+        ...(stffCost > 0 ? [{ source: 0, target: 5, value: stffCost }] : []),
+        ...(oprCost > 0 ? [{ source: 0, target: 6, value: oprCost }] : []),
+      ],
+    }
+
+    // 링크가 부족하면 BarChart로 대체
+    if (sankeyData.links.length < 2) {
+      const barData = [
+        { name: '입장수익', value: tcktRev },
+        { name: '방송수익', value: bcstRev },
+        { name: '스폰서수익', value: spnsRev },
+        { name: '선수단연봉', value: plrSalCost },
+        { name: '스태프비용', value: stffCost },
+        { name: '운영비', value: oprCost },
+      ]
+      return (
+        <ResponsiveContainer width="100%" height={320}>
+          <BarChart data={barData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
+            <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+            <YAxis tickFormatter={yTickFmt} tick={{ fontSize: 11 }} width={52} />
+            <RechartsTooltip formatter={tooltipFmt} />
+            <Bar dataKey="value" fill={ciClr} />
+          </BarChart>
+        </ResponsiveContainer>
+      )
+    }
+
+    return (
+      <Box>
+        <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1 }}>
+          {latest.ssntYr}시즌 수입·지출 흐름 (단위: 만원)
+        </Typography>
+        <ResponsiveContainer width="100%" height={320}>
+          <Sankey
+            data={sankeyData}
+            nodePadding={20}
+            nodeWidth={12}
+            margin={{ top: 10, right: 160, bottom: 10, left: 160 }}
+            link={{ stroke: '#aaa', fill: '#aaa', fillOpacity: 0.25 }}
+            node={{ fill: ciClr, stroke: ciClr }}
+          >
+            <RechartsTooltip formatter={(value: unknown) => [`${Number(value).toLocaleString()}만원`]} />
+          </Sankey>
+        </ResponsiveContainer>
+      </Box>
+    )
+  })()
+
   return (
-    <ResponsiveContainer width="100%" height={320}>
-      <LineChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
-        <XAxis dataKey="year" tick={{ fontSize: 12 }} />
-        <YAxis tickFormatter={(v) => v >= 10000 ? `${Math.round(v / 10000)}억` : `${v}만`} tick={{ fontSize: 11 }} width={52} />
-        <RechartsTooltip formatter={(value) => [`${Number(value).toLocaleString()}만원`]} />
-        <Legend />
-        <Line type="monotone" dataKey="보유현금" stroke={ciClr} strokeWidth={2} dot={{ r: 3 }} />
-        <Line type="monotone" dataKey="선수단예산" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} />
-        <Line type="monotone" dataKey="입장수익" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
-        <Line type="monotone" dataKey="방송수익" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} />
-      </LineChart>
-    </ResponsiveContainer>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      {/* 차트 1: 수입·지출 추이 (꺾은선) */}
+      <Box>
+        <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>수입·지출 추이</Typography>
+        <ResponsiveContainer width="100%" height={240}>
+          <LineChart data={incomeData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
+            <XAxis dataKey="year" tick={{ fontSize: 12 }} />
+            <YAxis tickFormatter={yTickFmt} tick={{ fontSize: 11 }} width={52} />
+            <RechartsTooltip formatter={tooltipFmt} />
+            <Legend />
+            <Line type="monotone" dataKey="입장수익" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
+            <Line type="monotone" dataKey="방송수익" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} />
+            <Line type="monotone" dataKey="스폰서수익" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} />
+          </LineChart>
+        </ResponsiveContainer>
+      </Box>
+      <Divider />
+      {/* 차트 2: 수입 구성 (누적 면적) */}
+      <Box>
+        <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>수입 구성 (누적)</Typography>
+        <ResponsiveContainer width="100%" height={240}>
+          <AreaChart data={incomeData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
+            <XAxis dataKey="year" tick={{ fontSize: 12 }} />
+            <YAxis tickFormatter={yTickFmt} tick={{ fontSize: 11 }} width={52} />
+            <RechartsTooltip formatter={tooltipFmt} />
+            <Legend />
+            <Area type="monotone" dataKey="입장수익" stackId="revenue" stroke="#10b981" fill="#10b981" fillOpacity={0.6} />
+            <Area type="monotone" dataKey="방송수익" stackId="revenue" stroke="#6366f1" fill="#6366f1" fillOpacity={0.6} />
+            <Area type="monotone" dataKey="스폰서수익" stackId="revenue" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.6} />
+          </AreaChart>
+        </ResponsiveContainer>
+      </Box>
+      <Divider />
+      {/* 차트 3: 종합 수입·지출 흐름 (Sankey) */}
+      <Box>
+        <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>종합 수입·지출 흐름</Typography>
+        {sankeySection}
+      </Box>
+    </Box>
   )
 }

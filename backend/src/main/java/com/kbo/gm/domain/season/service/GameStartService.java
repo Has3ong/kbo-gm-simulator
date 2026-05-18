@@ -2,6 +2,8 @@ package com.kbo.gm.domain.season.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kbo.gm.common.util.GameUtil;
+import com.kbo.gm.domain.fan.service.TmFanPrpnstService;
+import com.kbo.gm.domain.owner.service.TmOwnPrpnstService;
 import com.kbo.gm.domain.season.dao.PlrForStartDao;
 import com.kbo.gm.domain.season.dao.TmForStartDao;
 import com.kbo.gm.domain.season.dto.GameStartProgressDto;
@@ -22,10 +24,14 @@ import java.util.*;
 public class GameStartService {
 
     private static final int TOTAL_STEPS = 14;
+    /** 시즌시작선수생성초기화값 — 시즌 시작 시 자유계약 선수 풀 생성 수 */
+    private static final int SEASON_START_FA_COUNT = 50;
 
     private final GameStartMapper mapper;
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbcTemplate;
+    private final TmOwnPrpnstService ownPrpnstService;
+    private final TmFanPrpnstService fanPrpnstService;
 
     public void start(Long tmId, int ssntYr, SseEmitter emitter) {
         try {
@@ -89,6 +95,9 @@ public class GameStartService {
             }
             if (!entyList.isEmpty()) mapper.insertEntyBatch(entyList);
 
+            // Step 6.5: 자유계약 선수 풀 생성 (시즌시작선수생성초기화값)
+            generateFreeAgentPool(ssntYr);
+
             // Step 7: 라인업 자동 생성
             emit(emitter, 7, "라인업 자동 생성 중...", false, null);
             Map<Long, List<PlrForStartDao>> playersByTeam = groupByTeam(allPlayers);
@@ -118,6 +127,11 @@ public class GameStartService {
 
             // Step 12: 현재 날짜를 개막일로 설정 (Step 3에서 이미 CUR_DT = regStart로 설정)
             emit(emitter, 12, "현재 날짜 설정 중...", false, null);
+
+            // Step 12.5: 구단주·팬 성향 랜덤 생성
+            List<Long> allTmIds = allTeams.stream().map(TmForStartDao::getTmId).toList();
+            ownPrpnstService.randomizeAll(allTmIds);
+            fanPrpnstService.randomizeAll(allTmIds);
 
             // Step 13: 시작 이벤트/뉴스 생성
             emit(emitter, 13, "시작 이벤트 생성 중...", false, null);
@@ -353,6 +367,15 @@ public class GameStartService {
             }
         }
 
+        // FA 선수풀 삭제 (시즌 시작 시 재생성)
+        try {
+            jdbcTemplate.update("DELETE FROM PLR_ABLT WHERE PLR_ID IN (SELECT PLR_ID FROM PLR WHERE PLR_ORGN_CD IS NOT NULL)");
+            jdbcTemplate.update("DELETE FROM PLR_POSN WHERE PLR_ID IN (SELECT PLR_ID FROM PLR WHERE PLR_ORGN_CD IS NOT NULL)");
+            jdbcTemplate.update("DELETE FROM PLR WHERE PLR_ORGN_CD IS NOT NULL");
+        } catch (Exception e) {
+            log.warn("FA 선수풀 삭제 건너뜀: {}", e.getMessage());
+        }
+
         // PLR/PLR_TM/PLR_TM_CNTRCT — 시드 데이터와 in-game 데이터가 혼재하므로 날짜 기준 정리
         resetInGameContracts(ssntYr);
     }
@@ -553,6 +576,105 @@ public class GameStartService {
                         + "144경기를 통해 포스트시즌 진출을 목표로 팀을 이끌어 주세요.");
         list.add(welcome);
         return list;
+    }
+
+    private void generateFreeAgentPool(int ssntYr) {
+        Random rng = new Random(ssntYr + 999);
+        String[] lastNames = {"김","이","박","최","정","강","조","윤","장","임",
+                              "한","오","서","신","권","황","안","송","류","전"};
+        String[] firstSyl1 = {"민","지","재","성","동","준","현","상","승","태",
+                               "호","수","도","진","영","건","기","원","정","경"};
+        String[] firstSyl2 = {"준","호","민","혁","현","욱","수","훈","원","석",
+                               "우","진","환","빈","규","찬","성","혜","연","아"};
+
+        List<String> orgnList = new ArrayList<>();
+        for (int i = 0; i < 20; i++) orgnList.add("KBO");
+        for (int i = 0; i < 15; i++) orgnList.add("FOR");
+        for (int i = 0; i < 10; i++) orgnList.add("INDP");
+        for (int i = 0; i < 5;  i++) orgnList.add("UNIV");
+        Collections.shuffle(orgnList, rng);
+
+        // 대표 포지션 배분: 투수 20, 포수 5, 내야수 15, 외야수 10
+        List<String> reprPosnListFull = new ArrayList<>();
+        for (int i = 0; i < 20; i++) reprPosnListFull.add("10");
+        for (int i = 0; i < 5;  i++) reprPosnListFull.add("20");
+        for (int i = 0; i < 15; i++) reprPosnListFull.add("21");
+        for (int i = 0; i < 10; i++) reprPosnListFull.add("22");
+        Collections.shuffle(reprPosnListFull, rng);
+
+        String[] pitcherPosnPool = {"10","11","12"};
+        String[] infPosnPool     = {"21","22","23","24"};
+        String[] outPosnPool     = {"25","26","27","28"};
+
+        String[] batPtchHands       = {"RR","RL","LL","LR","RS","LS"};
+        int[]    batPtchHandWeights = {50, 25, 15, 5, 3, 2};
+
+        List<Long> generatedIds = new ArrayList<>();
+
+        for (int i = 0; i < SEASON_START_FA_COUNT; i++) {
+            String lastName  = lastNames[rng.nextInt(lastNames.length)];
+            String firstName = firstSyl1[rng.nextInt(firstSyl1.length)] + firstSyl2[rng.nextInt(firstSyl2.length)];
+            String plrNm     = lastName + firstName;
+            String orgnCd    = orgnList.get(i);
+            String reprPosnCd = reprPosnListFull.get(i);
+
+            String posnCd;
+            if ("10".equals(reprPosnCd)) {
+                posnCd = pitcherPosnPool[rng.nextInt(pitcherPosnPool.length)];
+            } else if ("20".equals(reprPosnCd)) {
+                posnCd = "20";
+            } else if ("21".equals(reprPosnCd)) {
+                posnCd = infPosnPool[rng.nextInt(infPosnPool.length)];
+            } else {
+                posnCd = outPosnPool[rng.nextInt(outPosnPool.length)];
+            }
+
+            String batPtchHand;
+            int r = rng.nextInt(100);
+            int cum = 0;
+            batPtchHand = "RR";
+            for (int k = 0; k < batPtchHandWeights.length; k++) {
+                cum += batPtchHandWeights[k];
+                if (r < cum) { batPtchHand = batPtchHands[k]; break; }
+            }
+
+            int  baseAblt = 30 + rng.nextInt(30);
+            int  potAblt  = Math.min(80, baseAblt + 5 + rng.nextInt(20));
+            long anslSal  = (long)(500 + rng.nextInt(2000)) * 10000L;
+
+            jdbcTemplate.update(
+                "INSERT INTO PLR (PLR_NM, PLR_ENG_NM, PLR_HGT, PLR_WGT, PLR_DRFT_RND, PLR_DRFT_NO, " +
+                "PLR_BAT_PTCH_HAND_CD, PLR_ANSL_SAL, PLR_NTNLT, PLR_FRGN_YN, PLR_STTS_CD, " +
+                "PLR_OVRL_ABLT, PLR_POT_ABLT, TM_ID, PLR_ORGN_CD) " +
+                "VALUES (?,?,?,?,NULL,NULL,?,?,?,?,?,?,?,NULL,?)",
+                plrNm, plrNm, 170 + rng.nextInt(20), 70 + rng.nextInt(30),
+                batPtchHand, anslSal, "KOR", "N", "FA",
+                baseAblt, potAblt, orgnCd
+            );
+            Long plrId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+            if (plrId == null) continue;
+            generatedIds.add(plrId);
+
+            jdbcTemplate.update(
+                "INSERT INTO PLR_POSN (PLR_ID, POSN_CD, POSN_PRFC_ABLT) VALUES (?,?,?)",
+                plrId, posnCd, baseAblt
+            );
+
+            String[] abltCds;
+            if ("10".equals(reprPosnCd)) {
+                abltCds = new String[]{"VEL","CTL","BRK","STM"};
+            } else {
+                abltCds = new String[]{"CNT","PWR","RUN","THR","STL"};
+            }
+            for (String abltCd : abltCds) {
+                int abltVal = Math.max(20, Math.min(80, baseAblt + rng.nextInt(21) - 10));
+                jdbcTemplate.update(
+                    "INSERT INTO PLR_ABLT (PLR_ID, ABLT_CD, ABLT_VAL) VALUES (?,?,?)",
+                    plrId, abltCd, abltVal
+                );
+            }
+        }
+        log.info("FA 선수풀 {}명 생성 완료 (시즌시작선수생성초기화값={})", generatedIds.size(), SEASON_START_FA_COUNT);
     }
 
     private String buildBrdcstHtml(List<Map<String, Object>> broadcasters) {

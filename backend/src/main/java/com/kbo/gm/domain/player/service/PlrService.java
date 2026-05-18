@@ -93,6 +93,17 @@ public class PlrService {
         return plrMapper.findInjuryHistory(plrId).stream().map(PlrInjryHistResponse::from).toList();
     }
 
+    public List<PlrGrwthLogResponse> getGrowthLog(Long plrId) {
+        return plrMapper.findGrowthLog(plrId);
+    }
+
+    public List<PlrResponse> searchPlayers(String plrNm, String reprPosnCd, String plrOrgnCd,
+            String plrFrgnYn, Integer minOvrl, Integer maxOvrl, Integer minAge, Integer maxAge, String plrSttsCd) {
+        return plrMapper.searchPlayers(plrNm, reprPosnCd, plrOrgnCd, plrFrgnYn,
+            minOvrl, maxOvrl, minAge, maxAge, plrSttsCd)
+            .stream().map(PlrResponse::from).toList();
+    }
+
     @Transactional
     public void editPlayer(Long plrId, PlrEditRequest req) {
         if (req.getSsntYr() != null && req.getFatg() != null && req.getCond() != null) {

@@ -2,7 +2,7 @@ import client from './client'
 import type { ApiResponse } from '../types/api'
 import type {
   Team, TmFinance, TmFacility, TmFacilityUpgr, TmMarket,
-  FcltyUpgrCost, Stdm, StdmExpn, StdmExpnCost,
+  FcltyUpgrCost, Stdm, StdmExpn, StdmExpnCost, TmFinLog,
 } from '../types/team'
 import type { Standing } from '../types/season'
 
@@ -48,4 +48,7 @@ export const teamApi = {
 
   expandStadium: (tmId: number, expnStep: number) =>
     client.post<ApiResponse<void>>(`/teams/${tmId}/stadium-expansion`, { expnStep }).then((r) => r.data),
+
+  getFinanceLog: (tmId: number) =>
+    client.get<ApiResponse<TmFinLog[]>>(`/teams/${tmId}/finance-log`).then((r) => r.data.data),
 }

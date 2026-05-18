@@ -36,6 +36,21 @@ export interface TmFinance {
   oprCost: number | null
   ownSupp: number | null
   debt: number | null
+  plrActualSal: number | null
+  coachActualSal: number | null
+  bcstBonusYtd: number | null
+}
+
+export interface TmFinLog {
+  logId: number
+  tmId: number
+  ssntYr: number
+  logDt: string
+  logTypeCd: string   // INCOME / EXPENSE
+  logCtgrCd: string
+  amount: number
+  memo: string | null
+  createdAt: string | null
 }
 
 export interface TmFacility {

@@ -44,4 +44,33 @@
         WHERE G.GAME_ID = #{gameId}
     </select>
 
+
+    <!-- ===== 경기 타자 기록 ===== -->
+    <select id="findBatterRecords" resultType="map">
+        SELECT R.PLR_ID, P.PLR_NM, R.TM_ID, T.TM_KR_NM,
+               R.PA, R.AB, R.H, R.DOBL, R.TRPL, R.HR,
+               R.RBI, R.R, R.BB, R.SO, R.SB,
+               CASE WHEN R.AB > 0 THEN ROUND(R.H / R.AB, 3) ELSE NULL END AS BA
+          FROM PLR_BATR_GAME_REC R
+          JOIN PLR P ON P.PLR_ID = R.PLR_ID
+          JOIN TM  T ON T.TM_ID  = R.TM_ID
+         WHERE R.GAME_ID = #{gameId}
+         ORDER BY R.TM_ID, R.HR DESC, R.RBI DESC, R.H DESC
+    </select>
+
+    <!-- ===== 경기 투수 기록 ===== -->
+    <select id="findPitcherRecords" resultType="map">
+        SELECT R.PLR_ID, P.PLR_NM, R.TM_ID, T.TM_KR_NM,
+               R.PTCH_ROLE_CD, R.IP_OUT, R.BF, R.H, R.ER,
+               R.BB, R.SO, R.W, R.L, R.SV, R.HLD,
+               CASE WHEN R.IP_OUT > 0
+                    THEN ROUND((R.ER * 27.0) / R.IP_OUT, 2)
+                    ELSE NULL END AS ERA
+          FROM PLR_PTCH_GAME_REC R
+          JOIN PLR P ON P.PLR_ID = R.PLR_ID
+          JOIN TM  T ON T.TM_ID  = R.TM_ID
+         WHERE R.GAME_ID = #{gameId}
+         ORDER BY R.TM_ID, FIELD(R.PTCH_ROLE_CD, 'SP', 'RP', 'CP')
+    </select>
+
 </mapper>

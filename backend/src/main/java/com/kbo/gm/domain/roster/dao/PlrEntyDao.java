@@ -33,4 +33,15 @@ public class PlrEntyDao {
     // PLR_FATG_COND 에서 JOIN
     private Integer fatg;            // 피로도 (1~100)
     private Integer cond;            // 컨디션 (1~100)
+
+    // PLR_ABLT 에서 서브쿼리
+    private Integer vel;             // 구속 (투수)
+    private Integer ctl;             // 제구 (투수)
+    private Integer brk;             // 변화구 (투수)
+    private Integer stm;             // 스태미나 (투수)
+    private Integer cnt;             // 컨택 (야수)
+    private Integer pwr;             // 파워 (야수)
+    private Integer run;             // 주루 (야수)
+    private Integer thr;             // 송구 (야수)
+    private Integer stl;             // 도루 (야수)
 }

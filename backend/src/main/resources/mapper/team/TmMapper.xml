@@ -35,13 +35,25 @@
     </select>
 
     <select id="findFinance" resultType="com.kbo.gm.domain.team.dao.TmFinanceDao">
-        SELECT TM_ID, SSNT_YR, STR_CASH, CUR_CASH, TOT_BDGT,
-               PLR_SAL_BDGT, COACH_BDGT, DVLP_BDGT, MKT_BDGT, FCLTY_BDGT,
-               CUR_PLR_SAL_COST, TCKT_REV, SSNT_TCKT_REV, MRCH_REV, SPNS_REV,
-               BCST_REV, PSTSSNT_REV, PLR_SAL_COST, STFF_COST, OPR_COST, OWN_SUPP, DEBT
-        FROM TM_FNC_SSNT
-        WHERE TM_ID = #{tmId}
-          AND SSNT_YR = #{ssntYr}
+        SELECT F.TM_ID, F.SSNT_YR, F.STR_CASH, F.CUR_CASH, F.TOT_BDGT,
+               F.PLR_SAL_BDGT, F.COACH_BDGT, F.DVLP_BDGT, F.MKT_BDGT, F.FCLTY_BDGT,
+               F.CUR_PLR_SAL_COST, F.TCKT_REV, F.SSNT_TCKT_REV, F.MRCH_REV, F.SPNS_REV,
+               F.BCST_REV, F.PSTSSNT_REV, F.PLR_SAL_COST, F.STFF_COST, F.OPR_COST, F.OWN_SUPP, F.DEBT,
+               (SELECT COALESCE(SUM(P.PLR_ANSL_SAL), 0)
+                  FROM PLR P
+                 WHERE P.TM_ID = F.TM_ID AND P.PLR_STTS_CD = 'AT') AS PLR_ACTUAL_SAL,
+               (SELECT COALESCE(SUM(S.ANSL_SAL), 0)
+                  FROM STFF_TM_CNTRCT S
+                 WHERE S.TM_ID = F.TM_ID AND (S.CNTRCT_END_DT IS NULL OR S.CNTRCT_END_DT >= CURDATE())) AS COACH_ACTUAL_SAL,
+               (SELECT COALESCE(BS.WIN_BONUS, 0) * COALESCE(TS.W, 0)
+                  FROM TM_BRDCST TB
+                  JOIN BRDCST_SPNSR BS ON BS.BRDCST_CD = TB.BRDCST_CD
+                 INNER JOIN STND TS ON TS.TM_ID = F.TM_ID AND TS.SSNT_YR = F.SSNT_YR
+                 WHERE TB.TM_ID = F.TM_ID AND TB.SSNT_YR = F.SSNT_YR
+                 LIMIT 1) AS BCST_BONUS_YTD
+        FROM TM_FNC_SSNT F
+        WHERE F.TM_ID = #{tmId}
+          AND F.SSNT_YR = #{ssntYr}
     </select>
 
     <select id="findFacilities" resultType="com.kbo.gm.domain.team.dao.TmFacilityDao">
@@ -189,6 +201,19 @@
         VALUES
             (#{stdmId}, #{tmId}, #{bfrSeatCnt}, #{aftSeatCnt}, #{expnCost},
              #{bgngDt}, #{endDt}, 'CMPL')
+    </insert>
+
+    <select id="findFinanceLog" resultType="com.kbo.gm.domain.team.dao.TmFinLogDao">
+        SELECT LOG_ID, TM_ID, SSNT_YR, LOG_DT, LOG_TYPE_CD, LOG_CTGR_CD,
+               AMOUNT, MEMO, CREATED_AT
+          FROM TM_FIN_LOG
+         WHERE TM_ID = #{tmId}
+         ORDER BY LOG_DT DESC, LOG_ID DESC
+    </select>
+
+    <insert id="insertFinanceLog">
+        INSERT INTO TM_FIN_LOG (TM_ID, SSNT_YR, LOG_DT, LOG_TYPE_CD, LOG_CTGR_CD, AMOUNT, MEMO)
+        VALUES (#{tmId}, #{ssntYr}, #{logDt}, #{logTypeCd}, #{logCtgrCd}, #{amount}, #{memo})
     </insert>
 
 </mapper>

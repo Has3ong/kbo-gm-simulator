@@ -64,6 +64,7 @@ KBO(한국 프로 야구) 단장이 되어 팀을 운영하는 웹 기반 시뮬
 | `docs/GAME_RESULT.md` | 경기 결과 처리 8단계 파이프라인 — 경기 후 기록·순위·피로도·재정 반영 흐름 |
 | `docs/REQUIRED_EVENT.md` | 필수 이벤트 게이트 — 날짜 진행(진행하기) 전 완료 필요 조건 목록 및 UI 동작 규칙 |
 | `docs/SEASON_END.md` | 시즌 종료 처리 흐름 — 14단계 프로세스, 시설 노후화, FA 전환 등 |
+| `docs/PROPENSITY.md` | 구단주/팬 성향 시스템 — 25개 구단주 성향 + 32개 팬 성향 필드 명세, API 엔드포인트 |
 
 > **수정 원칙**
 > - DB 구조 변경 → `docs/Schema.md` 먼저 수정, 이후 Flyway SQL·Java 반영

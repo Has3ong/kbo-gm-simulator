@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Routes, Route, Link, useLocation } from 'react-router-dom'
+import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom'
 import { AppBar, Toolbar, Typography, Button, Box, Container, IconButton, Tooltip } from '@mui/material'
 import { useInitTeamMeta } from './hooks/useTeamMeta'
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
@@ -7,7 +7,6 @@ import BugReportIcon from '@mui/icons-material/BugReport'
 import HomeIcon from '@mui/icons-material/Home'
 import TeamsPage from './pages/team/TeamsPage'
 import TeamDetailPage from './pages/team/TeamDetailPage'
-import PlayersPage from './pages/player/PlayersPage'
 import PlayerDetailPage from './pages/player/PlayerDetailPage'
 import RosterPage from './pages/roster/RosterPage'
 import StandingsPage from './pages/standings/StandingsPage'
@@ -21,16 +20,17 @@ import ScheduleCalendarModal from './components/ScheduleCalendarModal'
 import DraftPage from './pages/draft/DraftPage'
 import DraftEventPage from './pages/draft/DraftEventPage'
 import DevPage from './pages/dev/DevPage'
+import PlayerSearchPage from './pages/player/PlayerSearchPage'
 
 const NAV_ITEMS = [
   { label: '구단', path: '/teams' },
-  { label: '선수', path: '/players' },
-  { label: '로스터', path: '/roster' },
+  { label: '선수/로스터', path: '/roster' },
+  { label: '선수 검색', path: '/search' },
   { label: '순위표', path: '/standings' },
   { label: '스태프', path: '/staff' },
 ]
 
-const FULLSCREEN_PATHS = ['/', '/new-game', '/draft-event']
+const FULLSCREEN_PATHS = ['/', '/new-game', '/draft-event', '/roster-confirm']
 
 function TeamMetaLoader() {
   useInitTeamMeta()
@@ -48,6 +48,7 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/new-game" element={<NewGamePage />} />
         <Route path="/draft-event" element={<DraftEventPage />} />
+        <Route path="/roster-confirm" element={<RosterConfirmPage />} />
       </Routes>
     )
   }
@@ -122,14 +123,14 @@ export default function App() {
         <Routes>
           <Route path="/teams" element={<TeamsPage />} />
           <Route path="/teams/:tmId" element={<TeamDetailPage />} />
-          <Route path="/players" element={<PlayersPage />} />
+          <Route path="/players" element={<Navigate to="/roster" replace />} />
           <Route path="/players/:plrId" element={<PlayerDetailPage />} />
           <Route path="/roster" element={<RosterPage />} />
           <Route path="/standings" element={<StandingsPage />} />
           <Route path="/season" element={<SeasonPage />} />
-          <Route path="/roster-confirm" element={<RosterConfirmPage />} />
           <Route path="/staff" element={<StaffPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/search" element={<PlayerSearchPage />} />
           <Route path="/draft" element={<DraftPage />} />
           <Route path="/dev" element={<DevPage />} />
         </Routes>

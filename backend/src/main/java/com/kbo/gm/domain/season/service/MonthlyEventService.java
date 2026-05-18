@@ -65,6 +65,9 @@ public class MonthlyEventService {
             List<Map<String, Object>> reportEvents = generateMonthlyReport(ssntYr, mon, evntDt);
             if (!reportEvents.isEmpty()) mapper.insertEvntBatch(reportEvents);
 
+            // 능력치 월간 스냅샷
+            snapshotAbltMon(ssntYr, mon);
+
             // 완료
             emit(emitter, 6, ssntYr, mon, ssntYr + "년 " + mon + "월 정산 완료!", true);
             emitter.complete();
@@ -95,6 +98,7 @@ public class MonthlyEventService {
         if (!satEvents.isEmpty()) mapper.insertEvntBatch(satEvents);
         List<Map<String, Object>> reportEvents = generateMonthlyReport(ssntYr, mon, evntDt);
         if (!reportEvents.isEmpty()) mapper.insertEvntBatch(reportEvents);
+        snapshotAbltMon(ssntYr, mon);
     }
 
     // ----- SSE 전송 헬퍼 -----
@@ -508,6 +512,30 @@ public class MonthlyEventService {
         report.put("evntCnts", cnts.toString());
 
         return List.of(report);
+    }
+
+    // ----- 능력치 스냅샷 -----
+
+    /**
+     * 월 마감 시 모든 활성 선수(AT/INJ)의 PLR_ABLT 스냅샷을 PLR_ABLT_MON에 저장.
+     * 이미 해당 월 데이터가 있으면 스킵.
+     */
+    private void snapshotAbltMon(int ssntYr, int mon) {
+        Integer existing = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM PLR_ABLT_MON WHERE SSNT_YR=? AND MON=?",
+            Integer.class, ssntYr, mon);
+        if (existing != null && existing > 0) {
+            log.debug("PLR_ABLT_MON 스냅샷 스킵 (이미 존재): {}년 {}월", ssntYr, mon);
+            return;
+        }
+
+        int inserted = jdbcTemplate.update(
+            "INSERT IGNORE INTO PLR_ABLT_MON (PLR_ID, SSNT_YR, MON, ABLT_CD, ABLT_VAL) " +
+            "SELECT A.PLR_ID, ?, ?, A.ABLT_CD, A.ABLT_VAL " +
+            "FROM PLR_ABLT A JOIN PLR P ON P.PLR_ID = A.PLR_ID " +
+            "WHERE P.PLR_STTS_CD IN ('AT', 'INJ')",
+            ssntYr, mon);
+        log.info("PLR_ABLT_MON 스냅샷 완료: {}년 {}월 — {}건 INSERT", ssntYr, mon, inserted);
     }
 
     // ----- 유틸 -----

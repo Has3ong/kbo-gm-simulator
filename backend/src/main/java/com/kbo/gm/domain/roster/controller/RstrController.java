@@ -4,10 +4,12 @@ import com.kbo.gm.config.ApiResponse;
 import com.kbo.gm.domain.roster.dto.RstrMoveRequest;
 import com.kbo.gm.domain.roster.dto.RstrResponse;
 import com.kbo.gm.domain.roster.service.RstrService;
+import com.kbo.gm.domain.roster.service.RosterStatsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/roster")
@@ -15,6 +17,7 @@ import java.util.List;
 public class RstrController {
 
     private final RstrService rstrService;
+    private final RosterStatsService rosterStatsService;
 
     // 전체 로스터 조회 (1군 + 2군)
     @GetMapping("/{tmId}")
@@ -55,5 +58,13 @@ public class RstrController {
             @RequestParam Integer ssntYr) {
         rstrService.initRoster(tmId, ssntYr);
         return ApiResponse.ok(null);
+    }
+
+    // 팀 전체 선수 시즌 기록 조회 (타자/투수)
+    @GetMapping("/{tmId}/season-stats")
+    public ApiResponse<Map<String, Object>> getSeasonStats(
+            @PathVariable Long tmId,
+            @RequestParam Integer ssntYr) {
+        return ApiResponse.ok(rosterStatsService.getSeasonStats(tmId, ssntYr));
     }
 }

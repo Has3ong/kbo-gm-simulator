@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, Link as RouterLink } from 'react-router-dom'
+import type { FrgnPlrReleaseResult } from '../../api/playerApi'
 import {
   Box, Typography, Grid, Paper, Divider, Chip, IconButton,
   Table, TableBody, TableHead, TableRow, TableCell,
@@ -14,18 +15,20 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { formatSalary } from '../../utils/format'
+import { velToKph } from '../../utils/velConvert'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import { usePlayerDetailPage } from './PlayerDetailPageHooks'
 import { useReleaseForeignPlayer } from '../../hooks/usePlayers'
 import { useGame } from '../../contexts/GameContext'
 import { fmtIp, fmtStat } from '../../types/player'
 import type { PlrBatrSsntRec, PlrPtchSsntRec, PlrBatrMonRec, PlrPtchMonRec, PlrAbltSsnt, PlrAbltMon, PlrInjryHist } from '../../types/player'
+import type { PlrGrwthLogItem } from '../../api/playerApi'
 import { useTeamMeta } from '../../hooks/useTeamMeta'
 import PlrEditModal from '../../components/PlrEditModal'
 
 export default function PlayerDetailPage() {
   const {
-    player, abilities, positions, traits, hiddenAbilities, fatgCond, injuryHistory, contract,
+    player, abilities, positions, traits, hiddenAbilities, fatgCond, injuryHistory, growthLog, contract,
     contractHistory, salaryHistory, abilityHistory, abilityMonthlyHistory,
     abilityViewMode, setAbilityViewMode, abilityChartYear, setAbilityChartYear, abilityYears,
     seasonStats, monthlyStats,
@@ -36,11 +39,11 @@ export default function PlayerDetailPage() {
 
   const [editOpen, setEditOpen] = useState(false)
   const [releaseOpen, setReleaseOpen] = useState(false)
+  const [releaseResult, setReleaseResult] = useState<FrgnPlrReleaseResult | null>(null)
   const navigate = useNavigate()
   const { currentGame } = useGame()
-  const releaseMutation = useReleaseForeignPlayer(player?.plrId ?? 0, () => {
-    setReleaseOpen(false)
-    navigate('/players')
+  const releaseMutation = useReleaseForeignPlayer(player?.plrId ?? 0, (data) => {
+    setReleaseResult(data)
   })
   const canRelease =
     !!player &&
@@ -199,26 +202,36 @@ export default function PlayerDetailPage() {
               <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
                 <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }}>능력치</Typography>
                 <Divider sx={{ mb: 1 }} />
-                {abilities.map((a) => (
-                  <Box key={a.abltCd} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.75, borderBottom: '1px solid', borderColor: 'divider' }}>
-                    <Typography variant="body2" sx={{ color: 'text.secondary', width: 72, flexShrink: 0 }}>
-                      {a.abltNm ?? a.abltCd}
-                    </Typography>
-                    <LinearProgress
-                      variant="determinate"
-                      value={((a.abltVal - 20) / 60) * 100}
-                      sx={{
-                        flex: 1, height: 8, borderRadius: 4,
-                        bgcolor: 'grey.200',
-                        '& .MuiLinearProgress-bar': { bgcolor: ABILITY_GRADE_COLOR[a.abltGrade] ?? 'primary.main', borderRadius: 4 },
-                      }}
-                    />
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', width: 24, textAlign: 'right' }}>{a.abltVal}</Typography>
-                    <Typography variant="caption" sx={{ fontWeight: 'bold', width: 28, color: ABILITY_GRADE_COLOR[a.abltGrade] }}>
-                      {a.abltGrade}
-                    </Typography>
-                  </Box>
-                ))}
+                {abilities.map((a) => {
+                  const kph = a.abltCd === 'VEL' ? velToKph(a.abltVal) : null
+                  return (
+                    <Box key={a.abltCd} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.75, borderBottom: '1px solid', borderColor: 'divider' }}>
+                      <Typography variant="body2" sx={{ color: 'text.secondary', width: 72, flexShrink: 0 }}>
+                        {a.abltNm ?? a.abltCd}
+                      </Typography>
+                      <LinearProgress
+                        variant="determinate"
+                        value={((a.abltVal - 20) / 60) * 100}
+                        sx={{
+                          flex: 1, height: 8, borderRadius: 4,
+                          bgcolor: 'grey.200',
+                          '& .MuiLinearProgress-bar': { bgcolor: ABILITY_GRADE_COLOR[a.abltGrade] ?? 'primary.main', borderRadius: 4 },
+                        }}
+                      />
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', width: 24, textAlign: 'right' }}>{a.abltVal}</Typography>
+                      <Typography variant="caption" sx={{ fontWeight: 'bold', width: 28, color: ABILITY_GRADE_COLOR[a.abltGrade] }}>
+                        {a.abltGrade}
+                      </Typography>
+                      {kph != null ? (
+                        <Typography variant="caption" sx={{ width: 60, textAlign: 'right', color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                          {kph} km/h
+                        </Typography>
+                      ) : (
+                        <Box sx={{ width: 60 }} />
+                      )}
+                    </Box>
+                  )
+                })}
               </Paper>
             )}
 
@@ -380,6 +393,43 @@ export default function PlayerDetailPage() {
               <AbilityLineChart rows={abilityMonthlyHistory} xKey="mon" xLabel={(v) => `${v}월`} />
             )
           )}
+          {growthLog && growthLog.length > 0 && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }}>성장 이벤트 로그</Typography>
+              <Divider sx={{ mb: 1 }} />
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: 'grey.50' }}>
+                    <TableCell sx={{ fontWeight: 'bold' }}>시즌</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>날짜</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>능력치</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 'bold' }}>변화</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 'bold' }}>이전</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 'bold' }}>이후</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {growthLog.map((g: PlrGrwthLogItem, i: number) => (
+                    <TableRow key={i} hover>
+                      <TableCell>{g.ssntYr}년</TableCell>
+                      <TableCell>{g.grwthDt}</TableCell>
+                      <TableCell>{g.abltNm ?? g.abltCd}</TableCell>
+                      <TableCell align="center">
+                        <Typography sx={{
+                          fontWeight: 'bold',
+                          color: g.abltDiff > 0 ? 'success.main' : g.abltDiff < 0 ? 'error.main' : 'text.secondary',
+                        }}>
+                          {g.abltDiff > 0 ? `+${g.abltDiff}` : g.abltDiff}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="center">{g.abltValBfr}</TableCell>
+                      <TableCell align="center">{g.abltValAft}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Box>
+          )}
         </Paper>
       )}
 
@@ -482,29 +532,69 @@ export default function PlayerDetailPage() {
         fatgCond={fatgCond}
       />
 
-      <Dialog open={releaseOpen} onClose={() => setReleaseOpen(false)} maxWidth="xs" fullWidth>
+      <Dialog
+        open={releaseOpen}
+        onClose={() => { if (!releaseMutation.isPending) { setReleaseOpen(false); setReleaseResult(null) } }}
+        maxWidth="xs"
+        fullWidth
+      >
         <DialogTitle>외국인 선수 계약 해지</DialogTitle>
         <DialogContent>
-          <Typography variant="body2" sx={{ mb: 2 }}>
-            <b>{player.plrNm}</b> 선수와의 계약을 해지하시겠습니까?
-          </Typography>
-          <Alert severity="warning" sx={{ mb: 1 }}>
-            방출된 선수는 즉시 로스터·라인업·로테이션·불펜에서 제외되며, 같은 시즌에 다른 외국인 선수를 영입할 수 있게 됩니다.
-          </Alert>
-          {releaseMutation.isError && (
-            <Alert severity="error" sx={{ mt: 1 }}>계약 해지에 실패했습니다.</Alert>
+          {releaseResult ? (
+            <Box>
+              <Alert severity="success" sx={{ mb: 2 }}>
+                <b>{releaseResult.plrNm}</b> 선수와의 계약이 해지되었습니다.
+              </Alert>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography variant="body2" color="text.secondary">방출일</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{releaseResult.releaseDt}</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography variant="body2" color="text.secondary">해지 선수 연봉</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{formatSalary(releaseResult.plrAnslSal).display}</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography variant="body2" color="text.secondary">남은 외국인 슬롯</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{releaseResult.remainingFrgnSlots}명 영입 가능</Typography>
+                </Box>
+              </Box>
+            </Box>
+          ) : (
+            <>
+              <Typography variant="body2" sx={{ mb: 2 }}>
+                <b>{player.plrNm}</b> 선수와의 계약을 해지하시겠습니까?
+              </Typography>
+              <Alert severity="warning" sx={{ mb: 1 }}>
+                방출된 선수는 즉시 로스터·라인업·로테이션·불펜에서 제외되며, 같은 시즌에 다른 외국인 선수를 영입할 수 있게 됩니다.
+              </Alert>
+              {releaseMutation.isError && (
+                <Alert severity="error" sx={{ mt: 1 }}>계약 해지에 실패했습니다.</Alert>
+              )}
+            </>
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setReleaseOpen(false)} disabled={releaseMutation.isPending}>취소</Button>
-          <Button
-            color="error"
-            variant="contained"
-            onClick={() => releaseMutation.mutate()}
-            disabled={releaseMutation.isPending}
-          >
-            {releaseMutation.isPending ? '처리 중...' : '계약 해지'}
-          </Button>
+          {releaseResult ? (
+            <Button
+              variant="contained"
+              onClick={() => { setReleaseOpen(false); setReleaseResult(null); navigate('/players') }}
+            >
+              선수 목록으로
+            </Button>
+          ) : (
+            <>
+              <Button onClick={() => setReleaseOpen(false)} disabled={releaseMutation.isPending}>취소</Button>
+              <Button
+                color="error"
+                variant="contained"
+                onClick={() => releaseMutation.mutate()}
+                disabled={releaseMutation.isPending}
+              >
+                {releaseMutation.isPending ? '처리 중...' : '계약 해지'}
+              </Button>
+            </>
+          )}
         </DialogActions>
       </Dialog>
     </Box>

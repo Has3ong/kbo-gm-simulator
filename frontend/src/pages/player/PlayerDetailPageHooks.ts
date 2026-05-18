@@ -5,7 +5,7 @@ import {
   usePlrContractHistory, usePlrSalaryHistory, usePlrAbilityHistory, usePlrAbilityMonthlyHistory,
   usePlrBatterSeasonStats, usePlrPitcherSeasonStats,
   usePlrBatterMonthlyStats, usePlrPitcherMonthlyStats,
-  usePlrHiddenAbilities, usePlrFatgCond, usePlrInjuryHistory,
+  usePlrHiddenAbilities, usePlrFatgCond, usePlrInjuryHistory, usePlrGrowthLog,
 } from '../../hooks/usePlayers'
 import { PLR_STTS_LABEL, BAT_PTCH_HAND_LABEL, isPitcher } from '../../types/player'
 import { ABILITY_GRADE_COLOR, CURRENT_SEASON_YEAR } from '../../constants'
@@ -33,6 +33,7 @@ export function usePlayerDetailPage() {
   const { data: hiddenAbilities } = usePlrHiddenAbilities(plrIdNum)
   const { data: fatgCond } = usePlrFatgCond(plrIdNum, CURRENT_SEASON_YEAR)
   const { data: injuryHistory } = usePlrInjuryHistory(plrIdNum)
+  const { data: growthLog } = usePlrGrowthLog(plrIdNum)
 
   const isPlrPitcher = isPitcher(player?.reprPosnCd ?? null)
 
@@ -66,6 +67,7 @@ export function usePlayerDetailPage() {
     hiddenAbilities,
     fatgCond,
     injuryHistory,
+    growthLog,
     contract,
     contractHistory,
     salaryHistory,

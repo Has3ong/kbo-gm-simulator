@@ -25,6 +25,21 @@ public class PlrController {
         return ApiResponse.ok(plrService.findAll(tmId, plrSttsCd));
     }
 
+    @GetMapping("/search")
+    public ApiResponse<List<PlrResponse>> searchPlayers(
+            @RequestParam(required = false) String plrNm,
+            @RequestParam(required = false) String reprPosnCd,
+            @RequestParam(required = false) String plrOrgnCd,
+            @RequestParam(required = false) String plrFrgnYn,
+            @RequestParam(required = false) Integer minOvrl,
+            @RequestParam(required = false) Integer maxOvrl,
+            @RequestParam(required = false) Integer minAge,
+            @RequestParam(required = false) Integer maxAge,
+            @RequestParam(required = false) String plrSttsCd) {
+        return ApiResponse.ok(plrService.searchPlayers(
+            plrNm, reprPosnCd, plrOrgnCd, plrFrgnYn, minOvrl, maxOvrl, minAge, maxAge, plrSttsCd));
+    }
+
     @GetMapping("/{plrId}")
     public ApiResponse<PlrResponse> getPlayer(@PathVariable Long plrId) {
         return ApiResponse.ok(plrService.findById(plrId));
@@ -123,6 +138,11 @@ public class PlrController {
         return ApiResponse.ok(plrService.findInjuryHistory(plrId));
     }
 
+    @GetMapping("/{plrId}/growth-log")
+    public ApiResponse<List<PlrGrwthLogResponse>> getGrowthLog(@PathVariable Long plrId) {
+        return ApiResponse.ok(plrService.getGrowthLog(plrId));
+    }
+
     @PutMapping("/{plrId}/player-edit")
     public ApiResponse<Void> editPlayer(
             @PathVariable Long plrId,
@@ -132,8 +152,7 @@ public class PlrController {
     }
 
     @DeleteMapping("/{plrId}/release-foreign")
-    public ApiResponse<Void> releaseForeign(@PathVariable Long plrId) {
-        frgnPlrService.releaseForeignPlayer(plrId);
-        return ApiResponse.ok(null);
+    public ApiResponse<com.kbo.gm.domain.season.dto.FrgnPlrReleaseResponse> releaseForeign(@PathVariable Long plrId) {
+        return ApiResponse.ok(frgnPlrService.releaseForeignPlayer(plrId));
     }
 }

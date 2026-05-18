@@ -1,46 +1,29 @@
-import { Link as RouterLink } from 'react-router-dom'
 import {
-  Box, Typography, CircularProgress,
-  FormControl, InputLabel, Select, MenuItem,
+  Box, CircularProgress,
   TableContainer, Table, TableHead, TableBody, TableRow, TableCell,
-  Paper, Chip,
+  Paper, Chip, Typography,
 } from '@mui/material'
 import { useStaffPage } from './StaffPageHooks'
 
-const STFF_TYPE_COLOR: Record<string, 'default' | 'primary' | 'secondary' | 'success' | 'warning'> = {
-  MGR: 'primary', COACH: 'secondary', SCUT: 'success', MED: 'warning', ANLY: 'default',
+const STFF_TYPE_COLOR: Record<string, 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info'> = {
+  MGR:   'primary',
+  HCCH:  'secondary',
+  COACH: 'default',
+  SCUT:  'success',
+  MED:   'warning',
+  SCI:   'info',
+  YUTH:  'default',
+  ANLY:  'default',
 }
 
 export default function StaffPage() {
   const {
-    teams, staffs, isLoading,
-    selectedTmId, stffTypeCd,
-    handleTmChange, handleTypeChange,
+    staffs, isLoading,
     STFF_TYPE_LABEL,
   } = useStaffPage()
 
   return (
     <Box>
-      <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 3 }}>스태프</Typography>
-
-      <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
-        <FormControl size="small" sx={{ minWidth: 160 }}>
-          <InputLabel>구단</InputLabel>
-          <Select value={selectedTmId ?? ''} label="구단" onChange={(e) => handleTmChange(String(e.target.value))}>
-            <MenuItem value="">전체 구단</MenuItem>
-            {teams?.map((t) => <MenuItem key={t.tmId} value={t.tmId}>{t.tmKrNm}</MenuItem>)}
-          </Select>
-        </FormControl>
-
-        <FormControl size="small" sx={{ minWidth: 160 }}>
-          <InputLabel>직종</InputLabel>
-          <Select value={stffTypeCd ?? ''} label="직종" onChange={(e) => handleTypeChange(String(e.target.value))}>
-            <MenuItem value="">전체 직종</MenuItem>
-            {Object.entries(STFF_TYPE_LABEL).map(([k, v]) => <MenuItem key={k} value={k}>{v}</MenuItem>)}
-          </Select>
-        </FormControl>
-      </Box>
-
       {isLoading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 6 }}><CircularProgress /></Box>
       ) : (
@@ -49,7 +32,6 @@ export default function StaffPage() {
             <TableHead sx={{ bgcolor: 'grey.50' }}>
               <TableRow>
                 <TableCell sx={{ fontWeight: 'bold' }}>이름</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>구단</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>직종</TableCell>
                 <TableCell align="center" sx={{ fontWeight: 'bold' }}>경력</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 'bold' }}>연봉(만원)</TableCell>
@@ -63,11 +45,6 @@ export default function StaffPage() {
                     {s.stffFrgnYn === '1' && (
                       <Typography component="span" variant="caption" sx={{ color: 'text.secondary', ml: 0.5 }}>(외)</Typography>
                     )}
-                  </TableCell>
-                  <TableCell>
-                    {s.tmId
-                      ? <RouterLink to={`/teams/${s.tmId}`} style={{ color: 'inherit', textDecoration: 'none' }}>{s.tmKrNm}</RouterLink>
-                      : <Typography variant="body2" sx={{ color: 'text.secondary' }}>-</Typography>}
                   </TableCell>
                   <TableCell>
                     <Chip

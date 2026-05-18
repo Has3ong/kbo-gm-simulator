@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -23,5 +24,12 @@ public class GameService {
         GameDao dao = gameMapper.findById(gameId);
         if (dao == null) throw new IllegalArgumentException("경기를 찾을 수 없습니다: " + gameId);
         return GameResponse.from(dao);
+    }
+
+    public Map<String, Object> findRecords(Long gameId) {
+        return Map.of(
+            "batters",  gameMapper.findBatterRecords(gameId),
+            "pitchers", gameMapper.findPitcherRecords(gameId)
+        );
     }
 }

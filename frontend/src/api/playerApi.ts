@@ -7,6 +7,35 @@ import type {
   PlrHideAblt, PlrFatgCond, PlrInjryHist,
 } from '../types/player'
 
+export interface PlrSearchParams {
+  plrNm?: string
+  reprPosnCd?: string
+  plrOrgnCd?: string
+  plrFrgnYn?: string
+  minOvrl?: number
+  maxOvrl?: number
+  plrSttsCd?: string
+}
+
+export interface FrgnPlrReleaseResult {
+  plrNm: string
+  plrAnslSal: number
+  releaseDt: string
+  remainingFrgnSlots: number
+}
+
+export interface PlrGrwthLogItem {
+  plrId: number
+  ssntYr: number
+  grwthDt: string
+  grwthType: string
+  abltCd: string
+  abltNm: string | null
+  abltValBfr: number
+  abltValAft: number
+  abltDiff: number
+}
+
 export const playerApi = {
   getAll: (params?: { tmId?: number; plrSttsCd?: string }) =>
     client.get<ApiResponse<Player[]>>('/players', { params }).then((r) => r.data.data),
@@ -73,5 +102,12 @@ export const playerApi = {
     client.put<ApiResponse<void>>(`/players/${plrId}/player-edit`, data).then((r) => r.data),
 
   releaseForeign: (plrId: number) =>
-    client.delete<ApiResponse<void>>(`/players/${plrId}/release-foreign`).then((r) => r.data),
+    client.delete<ApiResponse<FrgnPlrReleaseResult>>(`/players/${plrId}/release-foreign`).then((r) => r.data.data),
+
+  getGrowthLog: (plrId: number) =>
+    client.get<ApiResponse<PlrGrwthLogItem[]>>(`/players/${plrId}/growth-log`)
+      .then((r) => r.data.data),
+
+  search: (params: PlrSearchParams) =>
+    client.get<ApiResponse<Player[]>>('/players/search', { params }).then((r) => r.data.data),
 }

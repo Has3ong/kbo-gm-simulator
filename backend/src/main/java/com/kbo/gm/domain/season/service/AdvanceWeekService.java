@@ -31,6 +31,8 @@ public class AdvanceWeekService {
 
     /**
      * 현재 날짜부터 다음주 월요일까지 하루씩 진행하며 필요한 이벤트를 자동 처리한다.
+     * 주간 처리는 이 메서드에서 실행하지 않고, done 이벤트의 weeklyRequired 플래그로
+     * 프론트엔드가 별도 SSE를 통해 실행하도록 위임한다.
      */
     public void advanceToNextMonday(int ssntYr, SseEmitter emitter) {
         try {
@@ -45,26 +47,26 @@ public class AdvanceWeekService {
             int totalDays = (int) (nextMonday.toEpochDay() - curDt.toEpochDay());
 
             emit(emitter, 0, totalDays, curDt.toString(), nextMonday.toString(),
-                    "다음주 월요일(" + nextMonday + ")까지 진행 시작...", false);
+                    "다음주 월요일(" + nextMonday + ")까지 진행 시작...", false, dayNameKo(curDt));
 
             int processed = 0;
             LocalDate date = curDt.plusDays(1);
 
             while (!date.isAfter(nextMonday)) {
-                // 날짜 진행 (advance-check 없이 강제 이동)
                 advanceDateDirect(ssntYr);
                 applyStatusTransition(ssntYr, date);
 
                 processed++;
                 String dateStr = date.toString();
+                String dayNm = dayNameKo(date);
 
-                // 경기일 처리 (정규시즌/포스트시즌)
                 SsntDao current = ssntMapper.findByYear(ssntYr);
                 String status = current != null ? current.getSsntSttsCd() : "PRE";
 
+                // 경기일 처리 (정규시즌/포스트시즌)
                 if ("REG".equals(status) || "POST".equals(status)) {
                     emit(emitter, processed, totalDays, dateStr, nextMonday.toString(),
-                            dateStr + " 경기 처리 중...", false);
+                            dateStr + " 경기 처리 중...", false, dayNm);
                     try {
                         gameResultService.processGamesInternal(ssntYr, dateStr);
                     } catch (Exception e) {
@@ -85,7 +87,7 @@ public class AdvanceWeekService {
                 if (date.getDayOfMonth() == 1 && !"PRE".equals(status)) {
                     int prevMon = date.minusMonths(1).getMonthValue();
                     emit(emitter, processed, totalDays, dateStr, nextMonday.toString(),
-                            date.getYear() + "년 " + prevMon + "월 정산 중...", false);
+                            date.getYear() + "년 " + prevMon + "월 정산 중...", false, dayNm);
                     try {
                         monthlyEventService.settleInternal(ssntYr, prevMon, date);
                     } catch (Exception e) {
@@ -95,7 +97,7 @@ public class AdvanceWeekService {
                     // 11월 1일: 시즌 종료
                     if (date.getMonthValue() == 11) {
                         emit(emitter, processed, totalDays, dateStr, nextMonday.toString(),
-                                "시즌 종료 처리 중...", false);
+                                "시즌 종료 처리 중...", false, dayNm);
                         try {
                             seasonEndService.runSeasonEnd(ssntYr, dateStr);
                         } catch (Exception e) {
@@ -104,25 +106,25 @@ public class AdvanceWeekService {
                     }
                 }
 
-                // 월요일: 주간 처리
-                if (date.getDayOfWeek() == DayOfWeek.MONDAY && !"PRE".equals(status)) {
-                    emit(emitter, processed, totalDays, dateStr, nextMonday.toString(),
-                            dateStr + " 주간 처리 중...", false);
-                    try {
-                        weeklyEventService.processInternal(ssntYr, dateStr);
-                    } catch (Exception e) {
-                        log.warn("{}일 주간 처리 실패 (무시): {}", dateStr, e.getMessage());
-                    }
-                }
-
                 emit(emitter, processed, totalDays, dateStr, nextMonday.toString(),
-                        dateStr + " 완료", false);
+                        dateStr + " " + dayNm + " 완료", false, dayNm);
 
                 date = date.plusDays(1);
             }
 
-            emit(emitter, totalDays, totalDays, nextMonday.toString(), nextMonday.toString(),
-                    nextMonday + "까지 진행 완료!", true);
+            // 완료 이벤트: 주간 처리 필요 여부를 weeklyRequired 플래그로 전달
+            SsntDao finalDao = ssntMapper.findByYear(ssntYr);
+            String finalStatus = finalDao != null ? finalDao.getSsntSttsCd() : "PRE";
+            boolean weeklyRequired = "REG".equals(finalStatus) || "POST".equals(finalStatus);
+
+            AdvanceWeekProgressDto doneDto = AdvanceWeekProgressDto.builder()
+                    .processedDays(totalDays).totalDays(totalDays)
+                    .currentDate(nextMonday.toString()).targetDate(nextMonday.toString())
+                    .message(nextMonday + "까지 진행 완료!")
+                    .done(true).dayOfWeek(dayNameKo(nextMonday))
+                    .weeklyRequired(weeklyRequired)
+                    .build();
+            emitter.send(SseEmitter.event().data(objectMapper.writeValueAsString(doneDto)));
             emitter.complete();
 
         } catch (Exception e) {
@@ -142,6 +144,18 @@ public class AdvanceWeekService {
 
     private void advanceDateDirect(int ssntYr) {
         ssntMapper.advanceDate(ssntYr);
+    }
+
+    private static String dayNameKo(LocalDate date) {
+        return switch (date.getDayOfWeek()) {
+            case MONDAY    -> "월요일";
+            case TUESDAY   -> "화요일";
+            case WEDNESDAY -> "수요일";
+            case THURSDAY  -> "목요일";
+            case FRIDAY    -> "금요일";
+            case SATURDAY  -> "토요일";
+            case SUNDAY    -> "일요일";
+        };
     }
 
     private void applyStatusTransition(int ssntYr, LocalDate date) {
@@ -164,11 +178,13 @@ public class AdvanceWeekService {
     }
 
     private void emit(SseEmitter emitter, int processed, int total, String currentDate,
-                      String targetDate, String message, boolean done) throws Exception {
+                      String targetDate, String message, boolean done,
+                      String dayOfWeek) throws Exception {
         AdvanceWeekProgressDto dto = AdvanceWeekProgressDto.builder()
                 .processedDays(processed).totalDays(total)
                 .currentDate(currentDate).targetDate(targetDate)
                 .message(message).done(done)
+                .dayOfWeek(dayOfWeek)
                 .build();
         emitter.send(SseEmitter.event().data(objectMapper.writeValueAsString(dto)));
     }

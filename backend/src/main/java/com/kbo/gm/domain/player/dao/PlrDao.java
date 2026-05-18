@@ -27,4 +27,6 @@ public class PlrDao {
     private String tmShrtKrNm;       // 소속 팀 한국어 약칭
     private String reprPosnCd;       // 대표 포지션 코드
     private String reprPosnNm;       // 대표 포지션 한국어 이름
+    private Integer injElapsedDays;  // 부상 경과 일수 (PLR_STTS_CD='INJ'인 경우에만 값, 그 외 null)
+    private String plrOrgnCd;        // 선수 출신 리그 코드 (PLR_ORGN 코드그룹)
 }

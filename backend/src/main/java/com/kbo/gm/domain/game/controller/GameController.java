@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/games")
@@ -29,5 +30,10 @@ public class GameController {
     @GetMapping("/{gameId}")
     public ApiResponse<GameResponse> getGame(@PathVariable Long gameId) {
         return ApiResponse.ok(gameService.findById(gameId));
+    }
+
+    @GetMapping("/{gameId}/records")
+    public ApiResponse<Map<String, Object>> getGameRecords(@PathVariable Long gameId) {
+        return ApiResponse.ok(gameService.findRecords(gameId));
     }
 }

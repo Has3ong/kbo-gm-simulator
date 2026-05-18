@@ -20,16 +20,59 @@
 
     <!-- ===== 팀 라인업 ===== -->
     <select id="findLineup" resultType="map">
-        SELECT L.PLR_ID, L.BAT_ORD, L.POSN_CD,
-               P.PLR_NM, P.REPR_POSN_CD
+        SELECT L.PLR_ID, L.LINEUP_NO, L.POSN_CD,
+               P.PLR_NM, PC.REPR_POSN_CD
         FROM   TM_LINEUP L
                JOIN PLR P ON P.PLR_ID = L.PLR_ID
+               LEFT JOIN (
+                   SELECT PLR_ID, REPR_POSN_CD
+                     FROM PLR_TM_CNTRCT
+                    WHERE FA_CNTRCT_END_DT >= CURDATE()
+                       OR FA_CNTRCT_END_DT IS NULL
+                    GROUP BY PLR_ID
+               ) PC ON PC.PLR_ID = L.PLR_ID
         WHERE  L.TM_ID = #{tmId}
+          AND  L.SSNT_YR = #{ssntYr}
           AND  P.PLR_STTS_CD = 'AT'
-        ORDER BY L.BAT_ORD
+        ORDER BY L.LINEUP_NO
     </select>
 
-    <!-- ===== 선발 로테이션 ===== -->
+    <!-- ===== 선발 투수 + 능력치 (로테이션 무작위 선택) ===== -->
+    <select id="findStarterWithAbilities" resultType="map">
+        SELECT R.PLR_ID, P.PLR_NM,
+               MAX(CASE WHEN PA.ABLT_CD = 'VEL' THEN PA.ABLT_VAL END) AS VEL,
+               MAX(CASE WHEN PA.ABLT_CD = 'CTL' THEN PA.ABLT_VAL END) AS CTL,
+               MAX(CASE WHEN PA.ABLT_CD = 'STM' THEN PA.ABLT_VAL END) AS STM
+        FROM   TM_ROTATION R
+               JOIN PLR P ON P.PLR_ID = R.PLR_ID
+               JOIN PLR_ABLT PA ON PA.PLR_ID = R.PLR_ID
+        WHERE  R.TM_ID = #{tmId}
+          AND  R.SSNT_YR = #{ssntYr}
+          AND  P.PLR_STTS_CD = 'AT'
+          AND  PA.ABLT_CD IN ('VEL', 'CTL', 'STM')
+        GROUP BY R.PLR_ID, P.PLR_NM, R.ROT_ORD
+        ORDER BY RAND()
+        LIMIT 1
+    </select>
+
+    <!-- ===== 불펜 투수 + 능력치 (MR→SU→CL 순) ===== -->
+    <select id="findBullpenWithAbilities" resultType="map">
+        SELECT B.PLR_ID, B.ROLE_CD, P.PLR_NM,
+               MAX(CASE WHEN PA.ABLT_CD = 'VEL' THEN PA.ABLT_VAL END) AS VEL,
+               MAX(CASE WHEN PA.ABLT_CD = 'CTL' THEN PA.ABLT_VAL END) AS CTL,
+               MAX(CASE WHEN PA.ABLT_CD = 'STM' THEN PA.ABLT_VAL END) AS STM
+        FROM   TM_BULLPEN B
+               JOIN PLR P ON P.PLR_ID = B.PLR_ID
+               JOIN PLR_ABLT PA ON PA.PLR_ID = B.PLR_ID
+        WHERE  B.TM_ID = #{tmId}
+          AND  B.SSNT_YR = #{ssntYr}
+          AND  P.PLR_STTS_CD = 'AT'
+          AND  PA.ABLT_CD IN ('VEL', 'CTL', 'STM')
+        GROUP BY B.PLR_ID, B.ROLE_CD, P.PLR_NM
+        ORDER BY FIELD(B.ROLE_CD, 'MR', 'SU', 'CL')
+    </select>
+
+    <!-- ===== 선발 로테이션 (레거시) ===== -->
     <select id="findRotation" resultType="map">
         SELECT R.PLR_ID, R.ROT_ORD,
                P.PLR_NM
@@ -41,13 +84,14 @@
         LIMIT 1
     </select>
 
-    <!-- ===== 불펜 ===== -->
+    <!-- ===== 불펜 (레거시) ===== -->
     <select id="findBullpen" resultType="map">
-        SELECT B.PLR_ID, B.BULLPEN_ROLE_CD,
+        SELECT B.PLR_ID, B.ROLE_CD,
                P.PLR_NM
         FROM   TM_BULLPEN B
                JOIN PLR P ON P.PLR_ID = B.PLR_ID
         WHERE  B.TM_ID = #{tmId}
+          AND  B.SSNT_YR = #{ssntYr}
           AND  P.PLR_STTS_CD = 'AT'
     </select>
 

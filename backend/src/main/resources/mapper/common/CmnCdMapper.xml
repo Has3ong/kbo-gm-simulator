@@ -33,4 +33,15 @@
           AND CD_VAL = #{cdVal}
     </select>
 
+    <insert id="insertCode">
+        INSERT INTO CMN_CD (CD_ID, CD_VAL, CD_NM, CD_ENG_NM, CD_DESC)
+        VALUES (#{cdId}, #{cdVal}, #{cdNm}, #{cdEngNm}, #{cdDesc})
+    </insert>
+
+    <delete id="deleteCode">
+        DELETE FROM CMN_CD
+        WHERE CD_ID  = #{cdId}
+          AND CD_VAL = #{cdVal}
+    </delete>
+
 </mapper>

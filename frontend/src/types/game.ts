@@ -32,3 +32,48 @@ export const GAME_TYPE_LABEL: Record<string, string> = {
   PO: '플레이오프',
   KS: '한국시리즈',
 }
+
+export interface BatterRecord {
+  plrId: number
+  plrNm: string
+  tmId: number
+  tmKrNm: string
+  pa: number
+  ab: number
+  h: number
+  dobl: number
+  trpl: number
+  hr: number
+  rbi: number
+  r: number
+  bb: number
+  so: number
+  sb: number
+  hbp: number
+  sf: number
+  ba: number | null
+}
+
+export interface PitcherRecord {
+  plrId: number
+  plrNm: string
+  tmId: number
+  tmKrNm: string
+  ptchRoleCd: string
+  ipOut: number
+  bf: number
+  h: number
+  er: number
+  bb: number
+  so: number
+  w: number
+  l: number
+  sv: number
+  hld: number
+  era: number | null
+}
+
+export interface GameRecords {
+  batters: BatterRecord[]
+  pitchers: PitcherRecord[]
+}

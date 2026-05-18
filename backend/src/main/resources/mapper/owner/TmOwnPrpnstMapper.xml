@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kbo.gm.domain.owner.mapper.TmOwnPrpnstMapper">
+
+    <!-- ===== 팀 ID로 구단주 성향 조회 ===== -->
+    <select id="findByTmId" resultType="com.kbo.gm.domain.owner.dao.TmOwnPrpnstDao">
+        SELECT TM_ID,
+               PATIENCE,
+               AMBITION,
+               FINANCIAL_STRICTNESS,
+               INVESTMENT_WILLINGNESS,
+               YOUTH_PREFERENCE,
+               STAR_PREFERENCE,
+               LOYALTY_TO_GM,
+               REBUILD_TOLERANCE,
+               WIN_NOW_PREFERENCE,
+               ANALYTICS_PREFERENCE,
+               SCOUTING_PREFERENCE,
+               FAN_PRESSURE_SENSITIVITY,
+               MEDIA_SENSITIVITY,
+               LOCAL_IDENTITY_PREFERENCE,
+               VETERAN_PREFERENCE,
+               FOREIGN_PLAYER_INVESTMENT,
+               PERFORMANCE_OVER_POPULARITY,
+               RISK_TOLERANCE,
+               FACILITY_PREFERENCE,
+               STAFF_INVESTMENT_PREFERENCE,
+               CURRENT_SATISFACTION,
+               FIRING_RISK,
+               BUDGET_FLEXIBILITY,
+               PITCHER_PREFERENCE,
+               BATTER_PREFERENCE
+          FROM TM_OWN_PRPNST
+         WHERE TM_ID = #{tmId}
+    </select>
+
+    <!-- ===== 전체 구단주 성향 조회 ===== -->
+    <select id="findAll" resultType="com.kbo.gm.domain.owner.dao.TmOwnPrpnstDao">
+        SELECT TM_ID,
+               PATIENCE,
+               AMBITION,
+               FINANCIAL_STRICTNESS,
+               INVESTMENT_WILLINGNESS,
+               YOUTH_PREFERENCE,
+               STAR_PREFERENCE,
+               LOYALTY_TO_GM,
+               REBUILD_TOLERANCE,
+               WIN_NOW_PREFERENCE,
+               ANALYTICS_PREFERENCE,
+               SCOUTING_PREFERENCE,
+               FAN_PRESSURE_SENSITIVITY,
+               MEDIA_SENSITIVITY,
+               LOCAL_IDENTITY_PREFERENCE,
+               VETERAN_PREFERENCE,
+               FOREIGN_PLAYER_INVESTMENT,
+               PERFORMANCE_OVER_POPULARITY,
+               RISK_TOLERANCE,
+               FACILITY_PREFERENCE,
+               STAFF_INVESTMENT_PREFERENCE,
+               CURRENT_SATISFACTION,
+               FIRING_RISK,
+               BUDGET_FLEXIBILITY,
+               PITCHER_PREFERENCE,
+               BATTER_PREFERENCE
+          FROM TM_OWN_PRPNST
+         ORDER BY TM_ID
+    </select>
+
+    <!-- ===== 구단주 성향 upsert ===== -->
+    <insert id="upsert">
+        INSERT INTO TM_OWN_PRPNST (
+            TM_ID,
+            PATIENCE,
+            AMBITION,
+            FINANCIAL_STRICTNESS,
+            INVESTMENT_WILLINGNESS,
+            YOUTH_PREFERENCE,
+            STAR_PREFERENCE,
+            LOYALTY_TO_GM,
+            REBUILD_TOLERANCE,
+            WIN_NOW_PREFERENCE,
+            ANALYTICS_PREFERENCE,
+            SCOUTING_PREFERENCE,
+            FAN_PRESSURE_SENSITIVITY,
+            MEDIA_SENSITIVITY,
+            LOCAL_IDENTITY_PREFERENCE,
+            VETERAN_PREFERENCE,
+            FOREIGN_PLAYER_INVESTMENT,
+            PERFORMANCE_OVER_POPULARITY,
+            RISK_TOLERANCE,
+            FACILITY_PREFERENCE,
+            STAFF_INVESTMENT_PREFERENCE,
+            CURRENT_SATISFACTION,
+            FIRING_RISK,
+            BUDGET_FLEXIBILITY,
+            PITCHER_PREFERENCE,
+            BATTER_PREFERENCE
+        ) VALUES (
+            #{tmId},
+            #{req.patience},
+            #{req.ambition},
+            #{req.financialStrictness},
+            #{req.investmentWillingness},
+            #{req.youthPreference},
+            #{req.starPreference},
+            #{req.loyaltyToGm},
+            #{req.rebuildTolerance},
+            #{req.winNowPreference},
+            #{req.analyticsPreference},
+            #{req.scoutingPreference},
+            #{req.fanPressureSensitivity},
+            #{req.mediaSensitivity},
+            #{req.localIdentityPreference},
+            #{req.veteranPreference},
+            #{req.foreignPlayerInvestment},
+            #{req.performanceOverPopularity},
+            #{req.riskTolerance},
+            #{req.facilityPreference},
+            #{req.staffInvestmentPreference},
+            #{req.currentSatisfaction},
+            #{req.firingRisk},
+            #{req.budgetFlexibility},
+            #{req.pitcherPreference},
+            #{req.batterPreference}
+        )
+        ON DUPLICATE KEY UPDATE
+            PATIENCE                    = #{req.patience},
+            AMBITION                    = #{req.ambition},
+            FINANCIAL_STRICTNESS        = #{req.financialStrictness},
+            INVESTMENT_WILLINGNESS      = #{req.investmentWillingness},
+            YOUTH_PREFERENCE            = #{req.youthPreference},
+            STAR_PREFERENCE             = #{req.starPreference},
+            LOYALTY_TO_GM               = #{req.loyaltyToGm},
+            REBUILD_TOLERANCE           = #{req.rebuildTolerance},
+            WIN_NOW_PREFERENCE          = #{req.winNowPreference},
+            ANALYTICS_PREFERENCE        = #{req.analyticsPreference},
+            SCOUTING_PREFERENCE         = #{req.scoutingPreference},
+            FAN_PRESSURE_SENSITIVITY    = #{req.fanPressureSensitivity},
+            MEDIA_SENSITIVITY           = #{req.mediaSensitivity},
+            LOCAL_IDENTITY_PREFERENCE   = #{req.localIdentityPreference},
+            VETERAN_PREFERENCE          = #{req.veteranPreference},
+            FOREIGN_PLAYER_INVESTMENT   = #{req.foreignPlayerInvestment},
+            PERFORMANCE_OVER_POPULARITY = #{req.performanceOverPopularity},
+            RISK_TOLERANCE              = #{req.riskTolerance},
+            FACILITY_PREFERENCE         = #{req.facilityPreference},
+            STAFF_INVESTMENT_PREFERENCE = #{req.staffInvestmentPreference},
+            CURRENT_SATISFACTION        = #{req.currentSatisfaction},
+            FIRING_RISK                 = #{req.firingRisk},
+            BUDGET_FLEXIBILITY          = #{req.budgetFlexibility},
+            PITCHER_PREFERENCE          = #{req.pitcherPreference},
+            BATTER_PREFERENCE           = #{req.batterPreference}
+    </insert>
+
+</mapper>

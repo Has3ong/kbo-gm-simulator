@@ -29,6 +29,24 @@
                   WHERE PC.PLR_ID = PE.PLR_ID
                     AND PC.TM_ID  = PE.TM_ID )                       /* 대표 포지션 */
                AS reprPosnCd
+             , ( SELECT PA.ABLT_VAL FROM PLR_ABLT PA WHERE PA.PLR_ID = PE.PLR_ID AND PA.ABLT_CD = 'VEL' ) /* 구속 */
+               AS vel
+             , ( SELECT PA.ABLT_VAL FROM PLR_ABLT PA WHERE PA.PLR_ID = PE.PLR_ID AND PA.ABLT_CD = 'CTL' ) /* 제구 */
+               AS ctl
+             , ( SELECT PA.ABLT_VAL FROM PLR_ABLT PA WHERE PA.PLR_ID = PE.PLR_ID AND PA.ABLT_CD = 'BRK' ) /* 변화구 */
+               AS brk
+             , ( SELECT PA.ABLT_VAL FROM PLR_ABLT PA WHERE PA.PLR_ID = PE.PLR_ID AND PA.ABLT_CD = 'STM' ) /* 스태미나 */
+               AS stm
+             , ( SELECT PA.ABLT_VAL FROM PLR_ABLT PA WHERE PA.PLR_ID = PE.PLR_ID AND PA.ABLT_CD = 'CNT' ) /* 컨택 */
+               AS cnt
+             , ( SELECT PA.ABLT_VAL FROM PLR_ABLT PA WHERE PA.PLR_ID = PE.PLR_ID AND PA.ABLT_CD = 'PWR' ) /* 파워 */
+               AS pwr
+             , ( SELECT PA.ABLT_VAL FROM PLR_ABLT PA WHERE PA.PLR_ID = PE.PLR_ID AND PA.ABLT_CD = 'RUN' ) /* 주루 */
+               AS run
+             , ( SELECT PA.ABLT_VAL FROM PLR_ABLT PA WHERE PA.PLR_ID = PE.PLR_ID AND PA.ABLT_CD = 'THR' ) /* 송구 */
+               AS thr
+             , ( SELECT PA.ABLT_VAL FROM PLR_ABLT PA WHERE PA.PLR_ID = PE.PLR_ID AND PA.ABLT_CD = 'STL' ) /* 도루 */
+               AS stl
           FROM PLR_ENTY PE                                           /* 선수 엔트리 현황 */
           JOIN PLR P ON P.PLR_ID = PE.PLR_ID                         /* 선수 */
           LEFT JOIN PLR_FATG_COND FC ON FC.PLR_ID = PE.PLR_ID AND FC.SSNT_YR = PE.SSNT_YR /* 피로도/컨디션 */
@@ -71,6 +89,24 @@
                   WHERE PC.PLR_ID = PE.PLR_ID
                     AND PC.TM_ID  = PE.TM_ID )                       /* 대표 포지션 */
                AS reprPosnCd
+             , ( SELECT PA.ABLT_VAL FROM PLR_ABLT PA WHERE PA.PLR_ID = PE.PLR_ID AND PA.ABLT_CD = 'VEL' ) /* 구속 */
+               AS vel
+             , ( SELECT PA.ABLT_VAL FROM PLR_ABLT PA WHERE PA.PLR_ID = PE.PLR_ID AND PA.ABLT_CD = 'CTL' ) /* 제구 */
+               AS ctl
+             , ( SELECT PA.ABLT_VAL FROM PLR_ABLT PA WHERE PA.PLR_ID = PE.PLR_ID AND PA.ABLT_CD = 'BRK' ) /* 변화구 */
+               AS brk
+             , ( SELECT PA.ABLT_VAL FROM PLR_ABLT PA WHERE PA.PLR_ID = PE.PLR_ID AND PA.ABLT_CD = 'STM' ) /* 스태미나 */
+               AS stm
+             , ( SELECT PA.ABLT_VAL FROM PLR_ABLT PA WHERE PA.PLR_ID = PE.PLR_ID AND PA.ABLT_CD = 'CNT' ) /* 컨택 */
+               AS cnt
+             , ( SELECT PA.ABLT_VAL FROM PLR_ABLT PA WHERE PA.PLR_ID = PE.PLR_ID AND PA.ABLT_CD = 'PWR' ) /* 파워 */
+               AS pwr
+             , ( SELECT PA.ABLT_VAL FROM PLR_ABLT PA WHERE PA.PLR_ID = PE.PLR_ID AND PA.ABLT_CD = 'RUN' ) /* 주루 */
+               AS run
+             , ( SELECT PA.ABLT_VAL FROM PLR_ABLT PA WHERE PA.PLR_ID = PE.PLR_ID AND PA.ABLT_CD = 'THR' ) /* 송구 */
+               AS thr
+             , ( SELECT PA.ABLT_VAL FROM PLR_ABLT PA WHERE PA.PLR_ID = PE.PLR_ID AND PA.ABLT_CD = 'STL' ) /* 도루 */
+               AS stl
           FROM PLR_ENTY PE                                           /* 선수 엔트리 현황 */
           JOIN PLR P ON P.PLR_ID = PE.PLR_ID                         /* 선수 */
          WHERE PE.TM_ID      = #{tmId}

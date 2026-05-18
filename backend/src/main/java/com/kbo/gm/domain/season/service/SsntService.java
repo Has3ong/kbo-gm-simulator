@@ -127,6 +127,18 @@ public class SsntService {
             }
         }
 
+        // PRE 시즌 2/11: 외국인 선수 계약 결과 뉴스 생성
+        if (updated != null && "PRE".equals(updated.getSsntSttsCd()) && updated.getCurDt() != null) {
+            LocalDate curDate = updated.getCurDt();
+            if (curDate.getMonthValue() == 2 && curDate.getDayOfMonth() == 11) {
+                try {
+                    generateFrgnContractResultNews(ssntYr, curDate.toString());
+                } catch (Exception e) {
+                    log.warn("외국인 계약 뉴스 생성 실패 (무시): {}", e.getMessage());
+                }
+            }
+        }
+
         applyStatusTransition(ssntYr);
         return findByYear(ssntYr);
     }
@@ -284,5 +296,96 @@ public class SsntService {
             "WHERE l.SSNT_YR = ? AND l.GRWTH_TYPE = 'SPRING_CAMP' " +
             "ORDER BY p.PLR_NM, l.ABLT_CD",
             ssntYr);
+    }
+
+    /** 2/11: 외국인 용병 계약 현황 뉴스 생성 */
+    private void generateFrgnContractResultNews(int ssntYr, String curDt) {
+        Long userTmId = GameUtil.getUserTmId(jdbcTemplate);
+        if (userTmId == null) return;
+
+        // 중복 생성 방지
+        try {
+            Integer existingNews = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM SSNT_EVNT WHERE SSNT_YR=? AND TM_ID=? AND EVNT_TTLT LIKE '%외국인 용병 계약 현황%'",
+                Integer.class, ssntYr, userTmId);
+            if (existingNews != null && existingNews > 0) return;
+        } catch (Exception e) {
+            return;
+        }
+
+        // 모든 팀 목록 조회
+        List<Map<String, Object>> teams = jdbcTemplate.queryForList(
+            "SELECT TM_ID, TM_KR_NM FROM TM ORDER BY TM_ID");
+
+        // 이번 시즌 방출된 외국인 선수 조회
+        String seasonStart = ssntYr + "-01-01";
+        List<Map<String, Object>> releasedPlrs = jdbcTemplate.queryForList(
+            "SELECT P.PLR_NM, T.TM_KR_NM " +
+            "FROM PLR P " +
+            "JOIN PLR_TM PT ON PT.PLR_ID = P.PLR_ID " +
+            "JOIN TM T ON T.TM_ID = PT.TM_ID " +
+            "WHERE P.PLR_FRGN_YN = '1' " +
+            "  AND P.PLR_STTS_CD = 'REL' " +
+            "  AND PT.TM_END_DT BETWEEN ? AND ? " +
+            "ORDER BY T.TM_KR_NM, P.PLR_NM",
+            seasonStart, curDt);
+
+        // 뉴스 내용 작성
+        StringBuilder sb = new StringBuilder();
+        sb.append(ssntYr).append("시즌 외국인 용병 계약 현황\n\n");
+        sb.append("▶ 구단별 계약 현황\n");
+
+        for (Map<String, Object> team : teams) {
+            Object tmIdObj = team.get("TM_ID");
+            Object tmKrNmObj = team.get("TM_KR_NM");
+            if (tmIdObj == null) continue;
+
+            long tmId = ((Number) tmIdObj).longValue();
+            String tmKrNm = tmKrNmObj != null ? tmKrNmObj.toString() : "알수없음";
+
+            // 팀별 활성 외국인 선수 조회
+            List<Map<String, Object>> frgnPlrs = jdbcTemplate.queryForList(
+                "SELECT P.PLR_NM, P.PLR_OVRL_ABLT, P.REPR_POSN_CD " +
+                "FROM PLR P " +
+                "WHERE P.TM_ID = ? AND P.PLR_FRGN_YN = '1' AND P.PLR_STTS_CD = 'AT' " +
+                "ORDER BY P.PLR_NM",
+                tmId);
+
+            sb.append("┌ ").append(tmKrNm)
+              .append(" (").append(frgnPlrs.size()).append("/3명)\n");
+
+            if (frgnPlrs.isEmpty()) {
+                sb.append("│  - (계약 선수 없음)\n");
+            } else {
+                for (Map<String, Object> plr : frgnPlrs) {
+                    String plrNm = plr.get("PLR_NM") != null ? plr.get("PLR_NM").toString() : "알수없음";
+                    int ovrl = plr.get("PLR_OVRL_ABLT") instanceof Number n ? n.intValue() : 0;
+                    String posn = plr.get("REPR_POSN_CD") != null ? plr.get("REPR_POSN_CD").toString() : "-";
+                    sb.append("│  - ").append(plrNm)
+                      .append(" (").append(posn).append(")")
+                      .append(" OVR:").append(ovrl).append("\n");
+                }
+            }
+            sb.append("└\n");
+        }
+
+        if (!releasedPlrs.isEmpty()) {
+            sb.append("\n▶ 방출/계약 해지\n");
+            for (Map<String, Object> plr : releasedPlrs) {
+                String tmKrNm = plr.get("TM_KR_NM") != null ? plr.get("TM_KR_NM").toString() : "알수없음";
+                String plrNm  = plr.get("PLR_NM")   != null ? plr.get("PLR_NM").toString()   : "알수없음";
+                sb.append("- ").append(tmKrNm).append(": ").append(plrNm).append("\n");
+            }
+        }
+
+        sb.append("\n※ 외국인 선수 계약 기간(2/1~2/10)이 종료되었습니다.\n");
+        sb.append("※ 시즌 도중 추가 영입을 원한다면 방출 후 재계약하세요.");
+
+        jdbcTemplate.update(
+            "INSERT INTO SSNT_EVNT (SSNT_YR, EVNT_DT, TM_ID, EVNT_TYPE_CD, EVNT_TTLT, EVNT_CNTS, RD_YN) " +
+            "VALUES (?,?,?,'NEWS',?,?,'0')",
+            ssntYr, curDt, userTmId,
+            ssntYr + "시즌 외국인 용병 계약 현황",
+            sb.toString());
     }
 }

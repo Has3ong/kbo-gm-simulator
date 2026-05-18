@@ -40,4 +40,18 @@ public class CmnCdController {
                 body.get("cdNm"), body.get("cdEngNm"), body.get("cdDesc"));
         return ApiResponse.ok(null);
     }
+
+    @PostMapping
+    public ApiResponse<Void> createCode(@RequestBody CmnCd code) {
+        cmnCdService.insertCode(code);
+        return ApiResponse.ok(null);
+    }
+
+    @DeleteMapping("/{cdId}/{cdVal}")
+    public ApiResponse<Void> deleteCode(
+            @PathVariable String cdId,
+            @PathVariable String cdVal) {
+        cmnCdService.deleteCode(cdId, cdVal);
+        return ApiResponse.ok(null);
+    }
 }

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kbo.gm.domain.season.mapper.SpringCampCfgMapper">
+
+    <resultMap id="cfgMap" type="com.kbo.gm.domain.season.dao.SpringCampCfgDao">
+        <id     property="campCd"           column="CAMP_CD"/>
+        <result property="campNm"           column="CAMP_NM"/>
+        <result property="cost"             column="COST"/>
+        <result property="tier"             column="TIER"/>
+        <result property="growthAbltCnt"    column="GROWTH_ABLT_CNT"/>
+        <result property="maxGrowthPerAblt" column="MAX_GROWTH_PER_ABLT"/>
+        <result property="maxOvrlGrowth"    column="MAX_OVRL_GROWTH"/>
+    </resultMap>
+
+    <!-- 전체 캠프 설정 조회 (티어 순) -->
+    <select id="findAll" resultMap="cfgMap">
+        SELECT CAMP_CD,
+               CAMP_NM,
+               COST,
+               TIER,
+               GROWTH_ABLT_CNT,
+               MAX_GROWTH_PER_ABLT,
+               MAX_OVRL_GROWTH
+          FROM SPRNG_CAMP_CFG
+         ORDER BY TIER
+    </select>
+
+    <!-- 캠프 코드로 단건 조회 -->
+    <select id="findByCampCd" resultMap="cfgMap">
+        SELECT CAMP_CD,
+               CAMP_NM,
+               COST,
+               TIER,
+               GROWTH_ABLT_CNT,
+               MAX_GROWTH_PER_ABLT,
+               MAX_OVRL_GROWTH
+          FROM SPRNG_CAMP_CFG
+         WHERE CAMP_CD = #{campCd}
+    </select>
+
+    <!-- 캠프 설정 수정 -->
+    <update id="update">
+        UPDATE SPRNG_CAMP_CFG
+           SET CAMP_NM            = #{campNm},
+               COST               = #{cost},
+               TIER               = #{tier},
+               GROWTH_ABLT_CNT    = #{growthAbltCnt},
+               MAX_GROWTH_PER_ABLT = #{maxGrowthPerAblt},
+               MAX_OVRL_GROWTH    = #{maxOvrlGrowth}
+         WHERE CAMP_CD = #{campCd}
+    </update>
+
+</mapper>

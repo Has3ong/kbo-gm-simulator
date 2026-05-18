@@ -33,8 +33,8 @@ export function useStandings(ssntYr: number) {
   })
 }
 
-export function useSeasonEvents(ssntYr: number, page: number, size = 20) {
-  const params = { page, size }
+export function useSeasonEvents(ssntYr: number, page: number, size = 20, tmId?: number) {
+  const params = { page, size, ...(tmId ? { tmId } : {}) }
   return useQuery({
     queryKey: seasonKeys.events(ssntYr, params),
     queryFn: () => seasonApi.getEvents(ssntYr, params),

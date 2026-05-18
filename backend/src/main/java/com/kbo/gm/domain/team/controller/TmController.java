@@ -89,4 +89,9 @@ public class TmController {
         tmService.expandStadium(tmId, req);
         return ApiResponse.ok(null);
     }
+
+    @GetMapping("/{tmId}/finance-log")
+    public ApiResponse<List<TmFinLogResponse>> getFinanceLog(@PathVariable Long tmId) {
+        return ApiResponse.ok(tmService.findFinanceLog(tmId));
+    }
 }

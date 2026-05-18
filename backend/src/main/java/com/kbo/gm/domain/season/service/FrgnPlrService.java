@@ -1,6 +1,7 @@
 package com.kbo.gm.domain.season.service;
 
 import com.kbo.gm.common.util.GameUtil;
+import com.kbo.gm.domain.season.dto.FrgnPlrReleaseResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -211,14 +212,14 @@ public class FrgnPlrService {
      * - FRGN_PLR_CAND.SGND_TM_ID 정리 → 같은 시즌에 다른 외국인 영입 가능
      */
     @Transactional
-    public void releaseForeignPlayer(long plrId) {
+    public FrgnPlrReleaseResponse releaseForeignPlayer(long plrId) {
         Long userTmId = GameUtil.getUserTmId(jdbcTemplate);
         if (userTmId == null) throw new IllegalStateException("유저 팀 정보가 없습니다.");
 
         Map<String, Object> plr;
         try {
             plr = jdbcTemplate.queryForMap(
-                "SELECT PLR_NM, TM_ID, PLR_FRGN_YN, PLR_STTS_CD FROM PLR WHERE PLR_ID=?", plrId);
+                "SELECT PLR_NM, TM_ID, PLR_FRGN_YN, PLR_STTS_CD, PLR_ANSL_SAL FROM PLR WHERE PLR_ID=?", plrId);
         } catch (Exception e) {
             throw new IllegalArgumentException("선수를 찾을 수 없습니다: " + plrId);
         }
@@ -226,6 +227,7 @@ public class FrgnPlrService {
         String frgnYn = str(plr.get("PLR_FRGN_YN"));
         String sttsCd = str(plr.get("PLR_STTS_CD"));
         String plrNm  = str(plr.get("PLR_NM"));
+        long plrAnslSal = toLong(plr.get("PLR_ANSL_SAL"));
 
         if (!"1".equals(frgnYn)) throw new IllegalStateException("외국인 선수만 계약 해지할 수 있습니다.");
         if (tmId != userTmId) throw new IllegalStateException("자신의 팀 선수만 계약 해지할 수 있습니다.");
@@ -272,6 +274,14 @@ public class FrgnPlrService {
             "외국인 선수 " + plrNm + "와의 계약이 해지되었습니다.\n방출일: " + curDt);
 
         log.info("외국인 선수 계약 해지: plrId={} tmId={} 이름={}", plrId, tmId, plrNm);
+
+        int remainingSlots = MAX_FRGN_PLR - countActiveFrgnPlrs(tmId);
+        return FrgnPlrReleaseResponse.builder()
+            .plrNm(plrNm)
+            .plrAnslSal(plrAnslSal)
+            .releaseDt(curDt)
+            .remainingFrgnSlots(remainingSlots)
+            .build();
     }
 
     /**
@@ -311,7 +321,132 @@ public class FrgnPlrService {
         Integer cnt = jdbcTemplate.queryForObject(
             "SELECT COUNT(*) FROM FRGN_PLR_CAND WHERE SSNT_YR=?", Integer.class, ssntYr);
         if (cnt != null && cnt > 0) return;
+        Long userTmId = GameUtil.getUserTmId(jdbcTemplate);
+        aiEvaluateAndReleaseForeignPlayers(ssntYr, userTmId); // 기존 외국인 평가/방출
         generateCandidates(ssntYr);
+    }
+
+    /**
+     * AI 팀 외국인 선수 성적 평가 후 부진 선수 방출
+     * - 이전 시즌 성적이 기준 이하이고 더 좋은 후보가 있으면 50% 확률로 방출
+     * - 후보 생성 전 호출되므로 후보 비교는 전년도 잔류 후보 또는 빈 상태일 수 있음
+     */
+    @Transactional
+    public void aiEvaluateAndReleaseForeignPlayers(int ssntYr, Long userTmId) {
+        int prevYr = ssntYr - 1;
+        String relDt = ssntYr + "-01-15";
+        Random rnd = new Random();
+
+        // 모든 AI 팀 목록 조회 (userTmId 제외)
+        List<Map<String, Object>> allTms = jdbcTemplate.queryForList(
+            "SELECT TM_ID FROM TM ORDER BY TM_ID");
+
+        for (Map<String, Object> tm : allTms) {
+            long tmId = toLong(tm.get("TM_ID"));
+            if (userTmId != null && tmId == userTmId) continue;
+
+            // 해당 AI 팀의 현재 활성 외국인 선수 조회
+            List<Map<String, Object>> frgnPlrs = jdbcTemplate.queryForList(
+                "SELECT P.PLR_ID, P.PLR_NM, P.PLR_FRGN_YN, P.PLR_OVRL_ABLT, P.TM_ID" +
+                " FROM PLR P" +
+                " WHERE P.TM_ID = ? AND P.PLR_FRGN_YN = '1' AND P.PLR_STTS_CD = 'AT'",
+                tmId);
+
+            for (Map<String, Object> plr : frgnPlrs) {
+                long plrId   = toLong(plr.get("PLR_ID"));
+                String plrNm = str(plr.get("PLR_NM"));
+                int plrOvrl  = toInt(plr.get("PLR_OVRL_ABLT"));
+
+                // 이전 시즌 성적 평가: 투수 여부 판단 (PLR_PTCH_SSNT_REC 기록 존재 여부)
+                List<Map<String, Object>> pitchRec = jdbcTemplate.queryForList(
+                    "SELECT ERA FROM PLR_PTCH_SSNT_REC WHERE PLR_ID=? AND SSNT_YR=?",
+                    plrId, prevYr);
+                List<Map<String, Object>> batRec = jdbcTemplate.queryForList(
+                    "SELECT AVG FROM PLR_BATR_SSNT_REC WHERE PLR_ID=? AND SSNT_YR=?",
+                    plrId, prevYr);
+
+                // 이전 시즌 기록이 없으면 신규 외국인으로 간주, 평가 생략
+                if (pitchRec.isEmpty() && batRec.isEmpty()) continue;
+
+                boolean isPoor = false;
+                String plrTypeCd;
+
+                if (!pitchRec.isEmpty()) {
+                    // 투수 평가
+                    plrTypeCd = "P";
+                    double era = toDouble(pitchRec.get(0).get("ERA"));
+                    if (era > 5.5) isPoor = true;
+                } else {
+                    // 타자 평가
+                    plrTypeCd = "B";
+                    double avg = toDouble(batRec.get(0).get("AVG"));
+                    if (avg < 0.240) isPoor = true;
+                }
+
+                if (!isPoor) continue;
+
+                // 현재 후보(같은 타입, AVAIL) 중 최고 OVRL 계산
+                // OVRL은 FRGN_PLR_CAND_ABLT 평균으로 산출
+                List<Map<String, Object>> candOvrls = jdbcTemplate.queryForList(
+                    "SELECT c.CAND_ID" +
+                    " FROM FRGN_PLR_CAND c" +
+                    " WHERE c.SSNT_YR = ? AND c.PLR_TYPE_CD = ? AND c.CNTRCT_STTS_CD = 'AVAIL'",
+                    ssntYr, plrTypeCd);
+
+                int maxCandOvrl = 0;
+                for (Map<String, Object> cand : candOvrls) {
+                    long candId = toLong(cand.get("CAND_ID"));
+                    List<Map<String, Object>> abltRows = jdbcTemplate.queryForList(
+                        "SELECT ABLT_VAL FROM FRGN_PLR_CAND_ABLT WHERE CAND_ID=?", candId);
+                    if (abltRows.isEmpty()) continue;
+                    int abltSum = 0;
+                    for (Map<String, Object> a : abltRows) abltSum += toInt(a.get("ABLT_VAL"));
+                    int candOvrl = clamp(abltSum / abltRows.size(), 20, 80);
+                    if (candOvrl > maxCandOvrl) maxCandOvrl = candOvrl;
+                }
+
+                // 후보 최고 OVRL이 현재 선수보다 8 이상 높아야 방출 후보
+                boolean hasBetterCandidate = (maxCandOvrl - plrOvrl) >= 8;
+                if (!hasBetterCandidate) continue;
+
+                // 50% 확률로 방출 결정
+                if (rnd.nextDouble() >= 0.5) continue;
+
+                // 방출 처리
+                jdbcTemplate.update(
+                    "UPDATE PLR SET PLR_STTS_CD='REL', TM_ID=NULL WHERE PLR_ID=?", plrId);
+                jdbcTemplate.update(
+                    "UPDATE PLR_TM SET TM_END_DT=? WHERE PLR_ID=? AND TM_ID=? AND TM_END_DT IS NULL",
+                    relDt, plrId, tmId);
+                jdbcTemplate.update(
+                    "UPDATE PLR_TM_CNTRCT SET FA_CNTRCT_END_DT=?" +
+                    " WHERE PLR_ID=? AND TM_ID=? AND (FA_CNTRCT_END_DT IS NULL OR FA_CNTRCT_END_DT > ?)",
+                    relDt, plrId, tmId, relDt);
+                jdbcTemplate.update(
+                    "DELETE FROM PLR_ENTY WHERE PLR_ID=? AND SSNT_YR=?", plrId, ssntYr);
+                jdbcTemplate.update(
+                    "DELETE FROM TM_LINEUP WHERE PLR_ID=? AND TM_ID=?", plrId, tmId);
+                jdbcTemplate.update(
+                    "DELETE FROM TM_ROTATION WHERE PLR_ID=? AND TM_ID=?", plrId, tmId);
+                jdbcTemplate.update(
+                    "DELETE FROM TM_BULLPEN WHERE PLR_ID=? AND TM_ID=?", plrId, tmId);
+                jdbcTemplate.update(
+                    "UPDATE FRGN_PLR_CAND SET SGND_TM_ID=NULL, CNTRCT_STTS_CD='RELEASED'" +
+                    " WHERE SSNT_YR=? AND SGND_TM_ID=? AND PLR_NM=?",
+                    ssntYr, tmId, plrNm);
+
+                // 방출 뉴스 생성
+                jdbcTemplate.update(
+                    "INSERT INTO SSNT_EVNT" +
+                    " (SSNT_YR, EVNT_DT, TM_ID, PLR_ID, EVNT_TYPE_CD, EVNT_TTLT, EVNT_CNTS, RD_YN)" +
+                    " VALUES (?,?,?,?,'FRGN',?,?,'0')",
+                    ssntYr, relDt, tmId, plrId,
+                    plrNm + " 외국인 선수 방출",
+                    "성적 부진으로 외국인 선수 " + plrNm + "와의 계약이 해지되었습니다.");
+
+                log.info("AI 외국인 선수 방출: plrId={} tmId={} plrNm={}", plrId, tmId, plrNm);
+            }
+        }
     }
 
     @Transactional
@@ -536,6 +671,14 @@ public class FrgnPlrService {
                 continue;
             }
 
+            // AI 팀의 경우 이미 MAX_FRGN_PLR 이상 계약 시 REJECTED
+            boolean isUser = userTmId != null && tmId == userTmId;
+            if (!isUser && countActiveFrgnPlrs(tmId) >= MAX_FRGN_PLR) {
+                jdbcTemplate.update(
+                    "UPDATE FRGN_PLR_OFFER SET OFFER_STTS_CD='REJECTED' WHERE OFFER_ID=?", offerId);
+                continue;
+            }
+
             // 수락/거절 확률 계산
             double ratio = wantSal > 0 ? (double) offerSal / wantSal : 0;
             double acceptProb;
@@ -639,6 +782,23 @@ public class FrgnPlrService {
             " VALUES (?,?,?,?,?,?,'FR')",
             plrId, tmId, curDt, offerSal, endDt, posnCd);
 
+        // PLR_POSN INSERT (FRGN_PLR_CAND.REPR_POSN_CD → PLR_POSN.POSN_CD 변환)
+        Map<String, String> reprToPosnCd = new java.util.HashMap<>();
+        reprToPosnCd.put("10", "10"); // 투수 → 선발투수
+        reprToPosnCd.put("1",  "20"); // 포수
+        reprToPosnCd.put("2",  "21"); // 1루수
+        reprToPosnCd.put("3",  "22"); // 2루수
+        reprToPosnCd.put("4",  "23"); // 3루수
+        reprToPosnCd.put("5",  "24"); // 유격수
+        reprToPosnCd.put("6",  "25"); // 좌익수
+        reprToPosnCd.put("7",  "26"); // 중견수
+        reprToPosnCd.put("8",  "27"); // 우익수
+        reprToPosnCd.put("9",  "28"); // DH
+        String plrPosnCd = reprToPosnCd.getOrDefault(posnCd, "10");
+        jdbcTemplate.update(
+            "INSERT INTO PLR_POSN (PLR_ID, POSN_CD, POSN_PRFC_ABLT) VALUES (?,?,?)",
+            plrId, plrPosnCd, ovrl);
+
         // PLR_ENTY INSERT (2군 등록)
         jdbcTemplate.update(
             "INSERT INTO PLR_ENTY (PLR_ID, TM_ID, SSNT_YR, ENTY_LVL_CD, ENTY_DT) VALUES (?,?,?,'2',?)",
@@ -711,6 +871,12 @@ public class FrgnPlrService {
         if (v == null) return 0L;
         if (v instanceof Number n) return n.longValue();
         try { return Long.parseLong(v.toString()); } catch (Exception e) { return 0L; }
+    }
+
+    private double toDouble(Object v) {
+        if (v == null) return 0.0;
+        if (v instanceof Number n) return n.doubleValue();
+        try { return Double.parseDouble(v.toString()); } catch (Exception e) { return 0.0; }
     }
 
     private String str(Object v) {

@@ -56,9 +56,12 @@ export interface SpringCampLocation {
 }
 
 export const STFF_TYPE_LABEL: Record<string, string> = {
-  MGR: '감독',
+  MGR:   '감독',
+  HCCH:  '수석코치',
   COACH: '코치',
-  SCUT: '스카우터',
-  MED: '의무·트레이너',
-  ANLY: '분석가',
+  SCUT:  '스카우터',
+  MED:   '팀닥터',
+  SCI:   '스포츠과학자',
+  YUTH:  '유소년코치',
+  ANLY:  '데이터분석가',
 }

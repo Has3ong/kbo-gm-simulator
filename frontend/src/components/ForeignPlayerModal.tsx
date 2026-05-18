@@ -43,6 +43,8 @@ const MAX_FRGN_PLR = 3
 export default function ForeignPlayerModal({ open, onClose, ssntYr }: ForeignPlayerModalProps) {
   const [tab, setTab] = useState(0)
   const [offerSals, setOfferSals] = useState<Record<number, string>>({})
+  // 이번 세션에서 오퍼 전송 완료된 후보 ID 목록 (쿼리 갱신 전 즉시 반영)
+  const [pendingCandIds, setPendingCandIds] = useState<Set<number>>(new Set())
 
   const { data: candidates = [], isLoading, isError } = useFrgnPlrCandidates(ssntYr)
   const { data: signedInfo } = useFrgnSignedInfo(ssntYr)
@@ -62,7 +64,11 @@ export default function ForeignPlayerModal({ open, onClose, ssntYr }: ForeignPla
   function handleOffer(candId: number) {
     const sal = parseInt(offerSals[candId] ?? '10000', 10)
     if (isNaN(sal)) return
-    makeoffer.mutate({ candId, offerSal: sal })
+    makeoffer.mutate({ candId, offerSal: sal }, {
+      onSuccess: () => {
+        setPendingCandIds((prev) => new Set([...prev, candId]))
+      },
+    })
   }
 
   function handleStop() {
@@ -87,10 +93,18 @@ export default function ForeignPlayerModal({ open, onClose, ssntYr }: ForeignPla
 
   function renderOfferCell(cand: FrgnPlrCandidate) {
     const isAvail = cand.cntrctSttsCd === 'AVAIL'
-    const isPending = cand.offerStatus?.offerSttsCd === 'PENDING'
+    const isPending = cand.offerStatus?.offerSttsCd === 'PENDING' || pendingCandIds.has(cand.candId)
 
     if (isPending) {
-      return <Typography variant="caption" sx={{ color: 'primary.main' }}>오퍼진행중</Typography>
+      return (
+        <Chip
+          label="오퍼 진행 중"
+          size="small"
+          color="primary"
+          variant="outlined"
+          sx={{ fontSize: 11 }}
+        />
+      )
     }
     if (!isAvail) return null
     if (isMaxReached) {

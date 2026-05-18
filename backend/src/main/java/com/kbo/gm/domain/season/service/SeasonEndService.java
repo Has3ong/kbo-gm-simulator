@@ -100,6 +100,9 @@ public class SeasonEndService {
             List<Map<String, Object>> reportEvents = generateFinalReport(ssntYr, evntDt);
             if (!reportEvents.isEmpty()) mapper.insertEvntBatch(reportEvents);
 
+            // 능력치 시즌 스냅샷
+            snapshotAbltSsnt(ssntYr);
+
             // 완료
             emit(emitter, TOTAL_STEPS, ssntYr, ssntYr + "년 시즌 종료 처리 완료!", true);
             emitter.complete();
@@ -150,6 +153,7 @@ public class SeasonEndService {
         mapper.insertEvntBatch(buildOffseasonEvent(ssntYr, evntDt));
         List<Map<String, Object>> report = generateFinalReport(ssntYr, evntDt);
         if (!report.isEmpty()) mapper.insertEvntBatch(report);
+        snapshotAbltSsnt(ssntYr);
     }
 
     private void finalizeStandings(int ssntYr) {
@@ -684,6 +688,29 @@ public class SeasonEndService {
         report.put("evntCnts", cnts.toString());
 
         return List.of(report);
+    }
+
+    // ----- 능력치 스냅샷 -----
+
+    /**
+     * 시즌 종료 시 모든 선수의 PLR_ABLT 스냅샷을 PLR_ABLT_SSNT에 저장.
+     * 이미 해당 시즌 데이터가 있으면 스킵.
+     */
+    private void snapshotAbltSsnt(int ssntYr) {
+        Integer existing = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM PLR_ABLT_SSNT WHERE SSNT_YR=?",
+            Integer.class, ssntYr);
+        if (existing != null && existing > 0) {
+            log.debug("PLR_ABLT_SSNT 스냅샷 스킵 (이미 존재): {}년", ssntYr);
+            return;
+        }
+
+        int inserted = jdbcTemplate.update(
+            "INSERT IGNORE INTO PLR_ABLT_SSNT (PLR_ID, SSNT_YR, ABLT_CD, ABLT_VAL) " +
+            "SELECT A.PLR_ID, ?, A.ABLT_CD, A.ABLT_VAL " +
+            "FROM PLR_ABLT A JOIN PLR P ON P.PLR_ID = A.PLR_ID",
+            ssntYr);
+        log.info("PLR_ABLT_SSNT 스냅샷 완료: {}년 — {}건 INSERT", ssntYr, inserted);
     }
 
     // ----- SSE 전송 헬퍼 -----

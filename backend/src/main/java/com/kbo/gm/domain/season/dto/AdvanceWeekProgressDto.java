@@ -18,4 +18,6 @@ public class AdvanceWeekProgressDto {
     private boolean done;
     private String  error;
     private int     ssntYr;
+    private String  dayOfWeek;       // 현재 처리 중인 날짜의 요일 (한국어)
+    private boolean weeklyRequired;  // 완료 후 주간 처리 실행 필요 여부 (REG/POST)
 }

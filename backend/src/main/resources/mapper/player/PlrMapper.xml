@@ -10,7 +10,18 @@
                P.PLR_STTS_CD, P.PLR_OVRL_ABLT, P.PLR_POT_ABLT,
                T.TM_ID, T.TM_KR_NM, T.TM_SHRT_KR_NM,
                PC.REPR_POSN_CD,
-               RC.CD_NM AS REPR_POSN_NM
+               RC.CD_NM AS REPR_POSN_NM,
+               /* 부상 경과 일수: INJ 상태인 선수의 현재 날짜와 최근 부상 이벤트 발생일의 차이 */
+               (CASE WHEN P.PLR_STTS_CD = 'INJ' THEN
+                   DATEDIFF(
+                       (SELECT G.CFG_VAL FROM GAME_CFG G WHERE G.CFG_KEY = 'CUR_DT' LIMIT 1),
+                       (SELECT SE.EVNT_DT FROM SSNT_EVNT SE
+                        WHERE SE.PLR_ID = P.PLR_ID
+                          AND SE.EVNT_TYPE_CD = 'INJ'
+                        ORDER BY SE.EVNT_DT DESC
+                        LIMIT 1)
+                   )
+               ELSE NULL END) AS INJ_ELAPSED_DAYS
         FROM PLR P
                  LEFT JOIN TM T ON T.TM_ID = P.TM_ID
                  LEFT JOIN (
@@ -252,6 +263,82 @@
         WHERE PLR_ID = #{plrId}
           AND EVNT_TYPE_CD IN ('INJ', 'RCV')
         ORDER BY EVNT_DT DESC
+    </select>
+
+    <!-- ===== 성장 이력 (PLR_GRWTH_LOG) ===== -->
+    <select id="findGrowthLog" resultType="com.kbo.gm.domain.player.dto.PlrGrwthLogResponse">
+        SELECT G.PLR_ID
+             , G.SSNT_YR
+             , DATE_FORMAT(G.GRWTH_DT, '%Y-%m-%d') AS grwthDt
+             , G.GRWTH_TYPE  AS grwthType
+             , G.ABLT_CD     AS abltCd
+             , C.CD_NM       AS abltNm
+             , G.ABLT_VAL_BFR AS abltValBfr
+             , G.ABLT_VAL_AFT AS abltValAft
+             , (G.ABLT_VAL_AFT - G.ABLT_VAL_BFR) AS abltDiff
+          FROM PLR_GRWTH_LOG G
+          LEFT JOIN CMN_CD C ON C.CD_ID = 'ABLT' AND C.CD_VAL = G.ABLT_CD
+         WHERE G.PLR_ID = #{plrId}
+         ORDER BY G.GRWTH_DT DESC, G.ABLT_CD
+    </select>
+
+    <!-- ===== 선수 검색 ===== -->
+    <select id="searchPlayers" resultType="com.kbo.gm.domain.player.dao.PlrDao">
+        SELECT
+              P.PLR_ID        AS plrId
+            , P.PLR_NM        AS plrNm
+            , P.PLR_ENG_NM    AS plrEngNm
+            , P.PLR_HGT       AS plrHgt
+            , P.PLR_WGT       AS plrWgt
+            , P.PLR_BAT_PTCH_HAND_CD AS plrBatPtchHandCd
+            , P.PLR_ANSL_SAL  AS plrAnslSal
+            , P.PLR_NTNLT     AS plrNtnlt
+            , P.PLR_FRGN_YN   AS plrFrgnYn
+            , P.PLR_STTS_CD   AS plrSttsCd
+            , P.PLR_OVRL_ABLT AS plrOvrlAblt
+            , P.PLR_POT_ABLT  AS plrPotAblt
+            , P.TM_ID         AS tmId
+            , P.PLR_ORGN_CD   AS plrOrgnCd
+            , T.TM_KR_NM      AS tmKrNm
+            , T.TM_SHRT_KR_NM AS tmShrtKrNm
+            , PP.REPR_POSN_CD AS reprPosnCd
+            , (SELECT CD_NM FROM CMN_CD WHERE CD_ID='REPR_POSN' AND CD_VAL=PP.REPR_POSN_CD) AS reprPosnNm
+            , (
+                SELECT DATEDIFF((SELECT CFG_VAL FROM GAME_CFG WHERE CFG_KEY='CUR_DT' LIMIT 1), SE.EVNT_DT)
+                  FROM SSNT_EVNT SE
+                 WHERE SE.PLR_ID = P.PLR_ID
+                   AND SE.EVNT_TYPE_CD = 'INJ'
+                   AND P.PLR_STTS_CD = 'INJ'
+                 ORDER BY SE.EVNT_DT DESC
+                 LIMIT 1
+              ) AS injElapsedDays
+          FROM PLR P
+          LEFT JOIN PLR_POSN PP ON PP.PLR_ID = P.PLR_ID
+          LEFT JOIN TM T         ON T.TM_ID = P.TM_ID
+         WHERE 1=1
+           <if test="plrNm != null and plrNm != ''">
+               AND P.PLR_NM LIKE CONCAT('%', #{plrNm}, '%')
+           </if>
+           <if test="reprPosnCd != null and reprPosnCd != ''">
+               AND PP.REPR_POSN_CD = #{reprPosnCd}
+           </if>
+           <if test="plrOrgnCd != null and plrOrgnCd != ''">
+               AND P.PLR_ORGN_CD = #{plrOrgnCd}
+           </if>
+           <if test="plrFrgnYn != null and plrFrgnYn != ''">
+               AND P.PLR_FRGN_YN = #{plrFrgnYn}
+           </if>
+           <if test="minOvrl != null">
+               AND P.PLR_OVRL_ABLT &gt;= #{minOvrl}
+           </if>
+           <if test="maxOvrl != null">
+               AND P.PLR_OVRL_ABLT &lt;= #{maxOvrl}
+           </if>
+           <if test="plrSttsCd != null and plrSttsCd != ''">
+               AND P.PLR_STTS_CD = #{plrSttsCd}
+           </if>
+         ORDER BY P.PLR_OVRL_ABLT DESC
+         LIMIT 200
     </select>
 
     <!-- ===== 선수 정보 수정 ===== -->

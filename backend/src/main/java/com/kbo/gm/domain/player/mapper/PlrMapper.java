@@ -2,6 +2,7 @@ package com.kbo.gm.domain.player.mapper;
 
 import com.kbo.gm.domain.player.dao.*;
 import com.kbo.gm.domain.player.dao.PlrInjryHistDao;
+import com.kbo.gm.domain.player.dto.PlrGrwthLogResponse;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -35,6 +36,22 @@ public interface PlrMapper {
 
     // 부상 이력
     List<PlrInjryHistDao> findInjuryHistory(@Param("plrId") Long plrId);
+
+    // 성장 이력
+    List<PlrGrwthLogResponse> findGrowthLog(@Param("plrId") Long plrId);
+
+    // 선수 검색
+    List<PlrDao> searchPlayers(
+        @Param("plrNm") String plrNm,
+        @Param("reprPosnCd") String reprPosnCd,
+        @Param("plrOrgnCd") String plrOrgnCd,
+        @Param("plrFrgnYn") String plrFrgnYn,
+        @Param("minOvrl") Integer minOvrl,
+        @Param("maxOvrl") Integer maxOvrl,
+        @Param("minAge") Integer minAge,
+        @Param("maxAge") Integer maxAge,
+        @Param("plrSttsCd") String plrSttsCd
+    );
 
     // 선수 정보 수정
     void updateAblt(@Param("plrId") Long plrId, @Param("abltCd") String abltCd, @Param("abltVal") Integer abltVal);

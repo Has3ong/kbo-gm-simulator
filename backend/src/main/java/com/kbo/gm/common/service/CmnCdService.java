@@ -30,4 +30,16 @@ public class CmnCdService {
     public void updateCode(String cdId, String cdVal, String cdNm, String cdEngNm, String cdDesc) {
         cmnCdMapper.updateCode(cdId, cdVal, cdNm, cdEngNm, cdDesc);
     }
+
+    public void insertCode(CmnCd code) {
+        CmnCd existing = cmnCdMapper.findByCdIdAndCdVal(code.getCdId(), code.getCdVal());
+        if (existing != null) {
+            throw new IllegalArgumentException("이미 존재하는 코드입니다: " + code.getCdId() + "/" + code.getCdVal());
+        }
+        cmnCdMapper.insertCode(code);
+    }
+
+    public void deleteCode(String cdId, String cdVal) {
+        cmnCdMapper.deleteCode(cdId, cdVal);
+    }
 }

@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Param;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 @Mapper
 public interface GameMapper {
@@ -14,4 +15,6 @@ public interface GameMapper {
                           @Param("gameDt") LocalDate gameDt,
                           @Param("tmId") Long tmId);
     GameDao findById(@Param("gameId") Long gameId);
+    List<Map<String, Object>> findBatterRecords(@Param("gameId") Long gameId);
+    List<Map<String, Object>> findPitcherRecords(@Param("gameId") Long gameId);
 }

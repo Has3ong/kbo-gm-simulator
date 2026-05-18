@@ -6,6 +6,7 @@ export const teamKeys = {
   one: (tmId: number) => ['teams', tmId] as const,
   finance: (tmId: number, ssntYr: number) => ['teams', tmId, 'finance', ssntYr] as const,
   financeHistory: (tmId: number) => ['teams', tmId, 'finance-history'] as const,
+  financeLog: (tmId: number) => ['teams', tmId, 'finance-log'] as const,
   facilities: (tmId: number) => ['teams', tmId, 'facility'] as const,
   facilityUpgrades: (tmId: number) => ['teams', tmId, 'facility-upgrades'] as const,
   fcltyUpgrCosts: (tmId: number) => ['teams', tmId, 'facility-upgrade-costs'] as const,
@@ -43,6 +44,14 @@ export function useTeamFinanceHistory(tmId: number) {
   return useQuery({
     queryKey: teamKeys.financeHistory(tmId),
     queryFn: () => teamApi.getFinanceHistory(tmId),
+    enabled: !!tmId,
+  })
+}
+
+export function useTeamFinanceLog(tmId: number) {
+  return useQuery({
+    queryKey: teamKeys.financeLog(tmId),
+    queryFn: () => teamApi.getFinanceLog(tmId),
     enabled: !!tmId,
   })
 }

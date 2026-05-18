@@ -20,24 +20,26 @@ import type { BrdcstSpnsr } from '../../types/broadcast'
 import { formatSalary } from '../../utils/format'
 import { teamLogoSrc } from '../../constants'
 import EventProgressDialog from '../../components/EventProgressDialog'
+import AdvanceWeekDialog from '../../components/AdvanceWeekDialog'
 import StaffHireModal from '../../components/StaffHireModal'
 import SpringCampModal from '../../components/SpringCampModal'
 import ForeignPlayerModal from '../../components/ForeignPlayerModal'
 import GrowthDetailTable from '../../components/GrowthDetailTable'
+import GameResultsPanel from '../../components/GameResultsPanel'
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
   INJ: '부상', RCV: '회복', TRD: '트레이드', SIGN: '계약', REL: '방출',
   WARN: '경고', FAN: '팬반응', CALL: '콜업', MVP: 'MVP', POST: '포스트',
   REC: '기록', NEWS: '뉴스', BRDCST: '방송국계약', STFF: '스태프선임',
   GRWTH: '성장', RCNF: '로스터확정', FRGN_OVER: '외국인초과', STFF_AI: '타 구단 선임',
-  FRGN: '외국인계약', SPRNG: '스프링캠프', FRGN_OPEN: '용병계약시작',
+  FRGN: '외국인계약', SPRNG: '스프링캠프', FRGN_OPEN: '용병계약시작', GAME: '경기결과',
 }
 
 const EVENT_CHIP_COLOR: Record<string, 'default' | 'error' | 'success' | 'info' | 'warning' | 'primary' | 'secondary'> = {
   INJ: 'error', RCV: 'success', TRD: 'info', SIGN: 'primary',
   REL: 'default', MVP: 'warning', POST: 'secondary', BRDCST: 'warning', STFF: 'warning',
   GRWTH: 'success', RCNF: 'warning', FRGN_OVER: 'error', STFF_AI: 'primary',
-  FRGN: 'primary', SPRNG: 'info', FRGN_OPEN: 'secondary',
+  FRGN: 'primary', SPRNG: 'info', FRGN_OPEN: 'secondary', GAME: 'info',
 }
 
 const GAME_SIM_STEP_LABELS = [
@@ -452,7 +454,13 @@ export default function SeasonPage() {
                 </Stack>
                 <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 2 }}>{selectedEvent.evntTtlt}</Typography>
                 <Divider sx={{ mb: 2 }} />
-                {selectedEvent.evntTypeCd === 'GRWTH' ? (
+                {selectedEvent.evntTypeCd === 'GAME' && selectedEvent.evntCnts ? (
+                  <GameResultsPanel
+                    ssntYr={ssntYr}
+                    gameDt={selectedEvent.evntCnts}
+                    userTmId={userTmId}
+                  />
+                ) : selectedEvent.evntTypeCd === 'GRWTH' ? (
                   <GrowthDetailTable ssntYr={ssntYr} />
                 ) : selectedEvent.evntTypeCd === 'RCNF' ? (
                   <Box>
@@ -677,10 +685,8 @@ export default function SeasonPage() {
         onClose={closeSeasonEnd}
       />
 
-      <EventProgressDialog
+      <AdvanceWeekDialog
         open={advanceWeekOpen}
-        title="다음주 월요일까지 진행 중..."
-        stepLabels={[]}
         progress={advanceWeekProgress}
         onClose={closeAdvanceWeek}
       />

@@ -80,6 +80,8 @@
 | `PLR_ENTY_HIST` | 선수 엔트리 변경 이력 (콜업·말소) |
 | `FRGN_PLR_CAND` | 외국인 선수 후보 (시즌별 생성, DB 영구 저장) |
 | `TM_BRDCST` | 팀-시즌별 방송국 계약 이력 (유저·AI 팀 모두) |
+| `TM_OWN_PRPNST` | 팀별 구단주 성향 |
+| `TM_FAN_PRPNST` | 팀별 팬/서포터즈 성향 |
 
 ---
 
@@ -1235,10 +1237,10 @@ GAME (경기 기본 정보)
 | TM_ID | BIGINT FK→TM | | 소속팀ID |
 | PTCH_ROLE_CD | CHAR(2) | | 투수 역할 (10=SP/11=RP/12=CP) |
 | IP_OUT | INT | | 투구이닝 (아웃카운트, 3=1이닝) |
-| BF/H/DOBL/TRPL/HR/R/ER/BB/IBB/SO/HBP/W/L/SV/HLD/BSV/CG/SHO | INT | | 투수 기록 (기본값 0) |
+| BF/H/DOBL/TRPL/HR/R/ER/BB/IBB/SO/HBP/W/L/SV/HLD/BSV/CG/SHO/QS/NH/PG | INT | | 투수 기록 (기본값 0) |
 | PITCHES/STRIKES | INT | | 투구수/스트라이크 |
 
-> BSV=블론세이브, CG=완투, SHO=완봉
+> BSV=블론세이브, CG=완투, SHO=완봉, QS=퀄리티스타트(6이닝+자책3이하), NH=노히트노런, PG=퍼펙트게임
 
 ### PLR_PTCH_MON_REC / PLR_PTCH_SSNT_REC / PLR_PTCH_TM_SSNT_REC
 
@@ -1247,7 +1249,7 @@ GAME (경기 기본 정보)
 - 시즌: `(PLR_ID, SSNT_YR)`
 - 팀별 시즌: `(PLR_ID, SSNT_YR, TM_ID)`
 
-집계 컬럼: BF/H/DOBL/TRPL/HR/R/ER/BB/IBB/SO/HBP/W/L/SV/HLD/BSV/CG/SHO + PITCHES  
+집계 컬럼: BF/H/DOBL/TRPL/HR/R/ER/BB/IBB/SO/HBP/W/L/SV/HLD/BSV/CG/SHO/QS/NH/PG + PITCHES  
 계산지표 (저장 안 함, 조회 시 계산): `ERA` (ER×27/IP_OUT), `WHIP` ((BB+H)×3/IP_OUT), `K/9` (SO×27/IP_OUT), `BB/9` (BB×27/IP_OUT)
 
 ---
@@ -1544,6 +1546,87 @@ DB에 영구 저장되며, 계약된 선수는 PLR 테이블에 INSERT 후 PLR_E
 | SSNT_YR | YEAR | ✓ | ✓ | 시즌 연도 |
 | PLR_ID | BIGINT FK→PLR | ✓ | ✓ | 투수 선수 ID |
 | ROLE_CD | CHAR(2) | | ✓ | 불펜 역할 코드 (CL: 마무리, SU: 셋업맨, MR: 중간계투) |
+
+---
+
+## TM_OWN_PRPNST (팀별 구단주 성향)
+
+팀별 구단주의 성향 프로필. 시즌 시작 시 랜덤 생성되며 DevPage에서 편집 가능.
+아직 게임 로직 미반영 (구조만 준비).
+
+| 컬럼 | 타입 | PK | NOT NULL | 설명 |
+|------|------|----|----------|------|
+| TM_ID | BIGINT FK→TM | ✓ | ✓ | 팀 ID |
+| PATIENCE | TINYINT UNSIGNED | | ✓ | 인내심 (1-100, DEFAULT 50) |
+| AMBITION | TINYINT UNSIGNED | | ✓ | 야망 (1-100, DEFAULT 50) |
+| FINANCIAL_STRICTNESS | TINYINT UNSIGNED | | ✓ | 재정 엄격도 (1-100, DEFAULT 50) |
+| INVESTMENT_WILLINGNESS | TINYINT UNSIGNED | | ✓ | 투자 의지 (1-100, DEFAULT 50) |
+| YOUTH_PREFERENCE | TINYINT UNSIGNED | | ✓ | 육성 선호도 (1-100, DEFAULT 50) |
+| STAR_PREFERENCE | TINYINT UNSIGNED | | ✓ | 스타 선수 선호도 (1-100, DEFAULT 50) |
+| LOYALTY_TO_GM | TINYINT UNSIGNED | | ✓ | 단장 신뢰도 (1-100, DEFAULT 50) |
+| REBUILD_TOLERANCE | TINYINT UNSIGNED | | ✓ | 리빌딩 허용도 (1-100, DEFAULT 50) |
+| WIN_NOW_PREFERENCE | TINYINT UNSIGNED | | ✓ | 즉시 성과 선호도 (1-100, DEFAULT 50) |
+| ANALYTICS_PREFERENCE | TINYINT UNSIGNED | | ✓ | 데이터 분석 선호도 (1-100, DEFAULT 50) |
+| SCOUTING_PREFERENCE | TINYINT UNSIGNED | | ✓ | 전통 스카우팅 선호도 (1-100, DEFAULT 50) |
+| FAN_PRESSURE_SENSITIVITY | TINYINT UNSIGNED | | ✓ | 팬 여론 민감도 (1-100, DEFAULT 50) |
+| MEDIA_SENSITIVITY | TINYINT UNSIGNED | | ✓ | 미디어 민감도 (1-100, DEFAULT 50) |
+| LOCAL_IDENTITY_PREFERENCE | TINYINT UNSIGNED | | ✓ | 지역 연고 중시도 (1-100, DEFAULT 50) |
+| VETERAN_PREFERENCE | TINYINT UNSIGNED | | ✓ | 베테랑 선호도 (1-100, DEFAULT 50) |
+| FOREIGN_PLAYER_INVESTMENT | TINYINT UNSIGNED | | ✓ | 외국인 선수 투자 성향 (1-100, DEFAULT 50) |
+| PERFORMANCE_OVER_POPULARITY | TINYINT UNSIGNED | | ✓ | 인기보다 성적 중시도 (1-100, DEFAULT 50) |
+| RISK_TOLERANCE | TINYINT UNSIGNED | | ✓ | 리스크 감수 성향 (1-100, DEFAULT 50) |
+| FACILITY_PREFERENCE | TINYINT UNSIGNED | | ✓ | 시설 투자 선호도 (1-100, DEFAULT 50) |
+| STAFF_INVESTMENT_PREFERENCE | TINYINT UNSIGNED | | ✓ | 스태프 투자 선호도 (1-100, DEFAULT 50) |
+| CURRENT_SATISFACTION | TINYINT UNSIGNED | | ✓ | 현재 만족도 (1-100, DEFAULT 50) |
+| FIRING_RISK | TINYINT UNSIGNED | | ✓ | 해고 위험도 (1-100, DEFAULT 20) |
+| BUDGET_FLEXIBILITY | TINYINT UNSIGNED | | ✓ | 예산 승인 성향 (1-100, DEFAULT 50) |
+| PITCHER_PREFERENCE | TINYINT UNSIGNED | | ✓ | 투수 선호도 (1-100, DEFAULT 50) |
+| BATTER_PREFERENCE | TINYINT UNSIGNED | | ✓ | 타자 선호도 (1-100, DEFAULT 50) |
+| UPD_DT | DATETIME | | | 수정일시 (DEFAULT NOW() ON UPDATE NOW()) |
+
+---
+
+## TM_FAN_PRPNST (팀별 팬/서포터즈 성향)
+
+팀별 팬·서포터즈의 성향 프로필. 시즌 시작 시 랜덤 생성되며 DevPage에서 편집 가능.
+아직 게임 로직 미반영 (구조만 준비).
+
+| 컬럼 | 타입 | PK | NOT NULL | 설명 |
+|------|------|----|----------|------|
+| TM_ID | BIGINT FK→TM | ✓ | ✓ | 팀 ID |
+| FAN_LOYALTY | TINYINT UNSIGNED | | ✓ | 팬 충성도 (1-100, DEFAULT 50) |
+| FAN_SATISFACTION | TINYINT UNSIGNED | | ✓ | 현재 팬 만족도 (1-100, DEFAULT 50) |
+| EXPECTATION_LEVEL | TINYINT UNSIGNED | | ✓ | 기대치 (1-100, DEFAULT 50) |
+| PERFORMANCE_SENSITIVITY | TINYINT UNSIGNED | | ✓ | 성적 민감도 (1-100, DEFAULT 50) |
+| REBUILD_PATIENCE | TINYINT UNSIGNED | | ✓ | 리빌딩 인내도 (1-100, DEFAULT 50) |
+| STAR_PLAYER_PREFERENCE | TINYINT UNSIGNED | | ✓ | 스타 선수 선호도 (1-100, DEFAULT 50) |
+| FRANCHISE_PLAYER_ATTACHMENT | TINYINT UNSIGNED | | ✓ | 프랜차이즈 선수 애착 (1-100, DEFAULT 50) |
+| PROSPECT_PREFERENCE | TINYINT UNSIGNED | | ✓ | 유망주 선호도 (1-100, DEFAULT 50) |
+| VETERAN_PREFERENCE | TINYINT UNSIGNED | | ✓ | 베테랑 선호도 (1-100, DEFAULT 50) |
+| FOREIGN_PLAYER_EXPECTATION | TINYINT UNSIGNED | | ✓ | 외국인 선수 기대치 (1-100, DEFAULT 50) |
+| LOCAL_IDENTITY | TINYINT UNSIGNED | | ✓ | 지역 연고 의식 (1-100, DEFAULT 50) |
+| TRADITION_PREFERENCE | TINYINT UNSIGNED | | ✓ | 전통/역사 중시도 (1-100, DEFAULT 50) |
+| SUPPORT_INTENSITY | TINYINT UNSIGNED | | ✓ | 응원 열기 (1-100, DEFAULT 50) |
+| RIVALRY_INTENSITY | TINYINT UNSIGNED | | ✓ | 라이벌 의식 (1-100, DEFAULT 50) |
+| ATTENDANCE_POWER | TINYINT UNSIGNED | | ✓ | 관중 동원력 (1-100, DEFAULT 50) |
+| MERCHANDISE_AFFINITY | TINYINT UNSIGNED | | ✓ | 굿즈 구매 성향 (1-100, DEFAULT 50) |
+| TICKET_PRICE_SENSITIVITY | TINYINT UNSIGNED | | ✓ | 티켓 가격 민감도 (1-100, DEFAULT 50) |
+| SEASON_TICKET_LOYALTY | TINYINT UNSIGNED | | ✓ | 시즌권 충성도 (1-100, DEFAULT 50) |
+| AWAY_FAN_POWER | TINYINT UNSIGNED | | ✓ | 원정 팬 파워 (1-100, DEFAULT 50) |
+| MEDIA_AMPLIFICATION | TINYINT UNSIGNED | | ✓ | 미디어 확산력 (1-100, DEFAULT 50) |
+| CRITICISM_TENDENCY | TINYINT UNSIGNED | | ✓ | 비판 성향 (1-100, DEFAULT 50) |
+| PATIENCE | TINYINT UNSIGNED | | ✓ | 인내심 (1-100, DEFAULT 50) |
+| EMOTIONAL_VOLATILITY | TINYINT UNSIGNED | | ✓ | 감정 기복 (1-100, DEFAULT 50) |
+| OFFENSE_PREFERENCE | TINYINT UNSIGNED | | ✓ | 공격 야구 선호도 (1-100, DEFAULT 50) |
+| PITCHING_PREFERENCE | TINYINT UNSIGNED | | ✓ | 투수 야구 선호도 (1-100, DEFAULT 50) |
+| DEFENSE_PREFERENCE | TINYINT UNSIGNED | | ✓ | 수비/기본기 선호도 (1-100, DEFAULT 50) |
+| AGGRESSIVE_MANAGEMENT_PREFERENCE | TINYINT UNSIGNED | | ✓ | 공격적 운영 선호도 (1-100, DEFAULT 50) |
+| CURRENT_POPULARITY | TINYINT UNSIGNED | | ✓ | 현재 인기 (1-100, DEFAULT 50) |
+| AVERAGE_ATTENDANCE | INT UNSIGNED | | ✓ | 평균 관중 수 (DEFAULT 0) |
+| SEASON_TICKET_HOLDERS | INT UNSIGNED | | ✓ | 시즌권 보유자 수 (DEFAULT 0) |
+| FAN_DISCONTENT | TINYINT UNSIGNED | | ✓ | 팬 불만도 (1-100, DEFAULT 20) |
+| DEMAND_LEVEL | TINYINT UNSIGNED | | ✓ | 팬 요구 수준 (1-100, DEFAULT 30) |
+| UPD_DT | DATETIME | | | 수정일시 (DEFAULT NOW() ON UPDATE NOW()) |
 
 ---
 

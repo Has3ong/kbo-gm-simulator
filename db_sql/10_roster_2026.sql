@@ -1,7 +1,28 @@
 -- =====================================================
--- 2026 시즌 팀 이동 선수 반영
--- 이전 소속 종료일: 2025-11-30 / 새 소속 시작일: 2026-01-15
+-- 2026 시즌 초기화
+-- PLR_ID 1-100: 기존 KBO 선수 상태·엔트리·컨디션 초기화
+-- 팀 이동 선수 반영 (이전 소속 종료: 2025-11-30 / 새 소속: 2026-01-15)
 -- =====================================================
+
+-- ─── PLR_ID 1-100: PLR_STTS_CD 초기화 ───────────────────────────────────────
+-- 초기 데이터(04_players.sql)에는 PLR_STTS_CD 없이 삽입됐으므로 여기서 세팅
+UPDATE PLR
+   SET PLR_STTS_CD = 'AT'
+ WHERE PLR_ID BETWEEN 1 AND 100
+   AND PLR_STTS_CD IS NULL;
+
+-- ─── PLR_ID 1-100: 피로도·컨디션 초기화 ─────────────────────────────────────
+INSERT IGNORE INTO PLR_FATG_COND (PLR_ID, SSNT_YR, FATG, COND)
+SELECT PLR_ID, 2026, 30, 70
+  FROM PLR
+ WHERE PLR_ID BETWEEN 1 AND 100;
+
+-- ─── PLR_ID 1-100: 2026 시즌 엔트리 초기화 (2군) ────────────────────────────
+INSERT IGNORE INTO PLR_ENTY (PLR_ID, SSNT_YR, TM_ID, ENTY_LVL_CD, ENTY_DT)
+SELECT p.PLR_ID, 2026, p.TM_ID, '2', '2026-01-15'
+  FROM PLR p
+ WHERE p.PLR_ID BETWEEN 1 AND 100
+   AND p.TM_ID IS NOT NULL;
 
 -- ─── PLR.TM_ID 현재팀 업데이트 ───────────────────────────────────────────────
 UPDATE PLR SET TM_ID = 2 WHERE PLR_ID = 3;   -- 최형우: KIA → 삼성

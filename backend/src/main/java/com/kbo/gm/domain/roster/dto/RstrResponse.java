@@ -29,6 +29,16 @@ public class RstrResponse {
     private Integer fatg; // 피로도 (1~100, null=데이터 없음)
     private Integer cond; // 컨디션 (1~100, null=데이터 없음)
 
+    // 능력치 (PLR_ABLT 서브쿼리)
+    private Integer vel; // 구속 (투수)
+    private Integer ctl; // 제구 (투수)
+    private Integer brk; // 변화구 (투수)
+    private Integer cnt; // 컨택 (야수)
+    private Integer pwr; // 파워 (야수)
+    private Integer run; // 주루 (야수)
+    private Integer thr; // 송구 (야수)
+    private Integer stl; // 도루 (야수)
+
     public static RstrResponse from(PlrEntyDao dao) {
         return RstrResponse.builder()
                 .plrId(dao.getPlrId())
@@ -46,6 +56,14 @@ public class RstrResponse {
                 .entyDt(dao.getEntyDt())
                 .fatg(dao.getFatg())
                 .cond(dao.getCond())
+                .vel(dao.getVel())
+                .ctl(dao.getCtl())
+                .brk(dao.getBrk())
+                .cnt(dao.getCnt())
+                .pwr(dao.getPwr())
+                .run(dao.getRun())
+                .thr(dao.getThr())
+                .stl(dao.getStl())
                 .build();
     }
 }

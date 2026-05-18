@@ -18,6 +18,8 @@ export interface Player {
   tmShrtKrNm: string | null
   reprPosnCd: string | null
   reprPosnNm: string | null
+  injElapsedDays: number | null
+  plrOrgnCd: string | null
 }
 
 export interface PlrAblt {

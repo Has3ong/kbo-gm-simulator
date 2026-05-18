@@ -33,6 +33,9 @@ public class TmFinanceResponse {
     private Long oprCost;        // 구단 운영 비용 (누적)
     private Long ownSupp;        // 구단주 지원금 (추가 투자)
     private Long debt;           // 누적 부채 (적자 이월)
+    private Long plrActualSal;    // 실제 선수단 연봉 총액
+    private Long coachActualSal;  // 코치 연봉 총액 (감독·코치 계약 합산)
+    private Long bcstBonusYtd;    // 방송 승리 수당 누계 (당해년도)
 
     public static TmFinanceResponse from(TmFinanceDao dao) {
         return TmFinanceResponse.builder()
@@ -58,6 +61,9 @@ public class TmFinanceResponse {
                 .oprCost(dao.getOprCost())
                 .ownSupp(dao.getOwnSupp())
                 .debt(dao.getDebt())
+                .plrActualSal(dao.getPlrActualSal())
+                .coachActualSal(dao.getCoachActualSal())
+                .bcstBonusYtd(dao.getBcstBonusYtd())
                 .build();
     }
 }

@@ -165,3 +165,141 @@ INSERT INTO CMN_CD (CD_ID, CD_VAL, CD_NM, CD_ENG_NM, CD_DESC) VALUES
 ('STFF_ABLT', 'TBRK', '변화구',   'Breaking Coach', '변화구 지도 능력'),
 ('STFF_ABLT', 'TRUN', '주루지도', 'Baserunning',    '주루 전략 지도 능력'),
 ('STFF_ABLT', 'TSTL', '도루지도', 'Steal Coach',    '도루 기술 지도 능력');
+
+-- ─── 추가 코드 (12_missing_cmn_cd.sql 통합, INSERT IGNORE) ──────────────────
+
+-- PLR_STTS — 선수 상태코드
+INSERT IGNORE INTO CMN_CD (CD_ID, CD_VAL, CD_NM, CD_ENG_NM, CD_DESC) VALUES
+('PLR_STTS', 'AT',  '활동',    'Active',       '정상 활동 중. 경기 출전 가능'),
+('PLR_STTS', 'INJ', '부상',    'Injured',      '부상으로 이탈. 경기 출전 불가'),
+('PLR_STTS', 'RET', '은퇴',    'Retired',      '은퇴. 경기 출전 불가'),
+('PLR_STTS', 'FA',  'FA',      'Free Agent',   '자유계약 상태. 소속팀 없음'),
+('PLR_STTS', 'REL', '방출',    'Released',     '구단에서 방출된 상태');
+
+-- HIDE_ABLT — 히든 능력치코드 (1~20 스케일, 게임 엔진 내부 연산 전용)
+INSERT IGNORE INTO CMN_CD (CD_ID, CD_VAL, CD_NM, CD_ENG_NM, CD_DESC) VALUES
+('HIDE_ABLT', 'FCN', '집중력',     'Focus',           '한 경기 내에서의 일관성. 높을수록 경기 중 집중력이 지속됨'),
+('HIDE_ABLT', 'DRV', '승부욕',     'Drive',           '승리에 대한 헌신도 및 경기 중 결단력'),
+('HIDE_ABLT', 'LDR', '리더십',     'Leadership',      '다른 선수에게 미치는 긍정적 영향력'),
+('HIDE_ABLT', 'IRK', '부상위험도', 'Injury Risk',     '부상 빈도 및 확률. 높을수록 부상에 취약(유리몸)'),
+('HIDE_ABLT', 'CST', '일관성',     'Consistency',     '일정 경기 동안 얼마나 꾸준히 활약할 수 있는가'),
+('HIDE_ABLT', 'DRT', '더티플레이', 'Dirty Play',      '비매너 행동 빈도. 상대를 흥분시켜 실수·카드를 유도하는 능력'),
+('HIDE_ABLT', 'BGM', '중요경기',   'Big Game',        '중요경기에서 긴장하지 않는 능력'),
+('HIDE_ABLT', 'AMB', '야망',       'Ambition',        '더 큰 것을 바라는 정도. 높으면 성장 빠르나 이적·연봉 요구 분쟁 가능'),
+('HIDE_ABLT', 'PRF', '프로의식',   'Professionalism', '필드 안팎 프로의식. 높으면 성장 빠르고 노화 속도 둔화'),
+('HIDE_ABLT', 'SPT', '스포츠맨십', 'Sportsmanship',   '필드 내 정정당당함의 수치'),
+('HIDE_ABLT', 'PAT', '참을성',     'Patience',        '동료·감독·연봉 협상 상황에서의 인내심');
+
+-- STFF_TYPE — 스태프 직종코드
+INSERT IGNORE INTO CMN_CD (CD_ID, CD_VAL, CD_NM, CD_ENG_NM, CD_DESC) VALUES
+('STFF_TYPE', 'MGR',   '감독',         'Manager',         '팀 전략·전술·인사 총괄'),
+('STFF_TYPE', 'COACH', '코치',         'Coach',           '타격·투수·주루 등 포지션별 지도'),
+('STFF_TYPE', 'SCUT',  '스카우터',     'Scout',           '선수 발굴·평가·입단 협상'),
+('STFF_TYPE', 'MED',   '의무트레이너', 'Medical Trainer', '부상 진단·치료·재활 관리'),
+('STFF_TYPE', 'ANLY',  '분석가',       'Analyst',         '경기 데이터 분석·전략 보조');
+
+-- CNTRCT_TYPE — 계약 종류코드
+INSERT IGNORE INTO CMN_CD (CD_ID, CD_VAL, CD_NM, CD_ENG_NM, CD_DESC) VALUES
+('CNTRCT_TYPE', 'FA', 'FA 계약',   'Free Agent',  '자유계약선수 계약'),
+('CNTRCT_TYPE', 'RC', '재계약',    'Re-Contract', '기존 팀과 연장·재계약'),
+('CNTRCT_TYPE', 'NK', '신인 계약', 'New Kid',     '드래프트 신인 계약'),
+('CNTRCT_TYPE', 'FR', '외국인',    'Foreign',     '외국인 선수 계약');
+
+-- FCLTY_STTS — 시설 업그레이드 상태코드
+INSERT IGNORE INTO CMN_CD (CD_ID, CD_VAL, CD_NM, CD_ENG_NM, CD_DESC) VALUES
+('FCLTY_STTS', 'PLAN', '계획중', 'Planned',     '업그레이드 계획 수립'),
+('FCLTY_STTS', 'PROG', '진행중', 'In Progress', '업그레이드 공사 중'),
+('FCLTY_STTS', 'CMPL', '완료',   'Completed',   '업그레이드 완료'),
+('FCLTY_STTS', 'CNCL', '취소',   'Cancelled',   '업그레이드 취소');
+
+-- GAME_TYPE — 경기 종류코드
+INSERT IGNORE INTO CMN_CD (CD_ID, CD_VAL, CD_NM, CD_ENG_NM, CD_DESC) VALUES
+('GAME_TYPE', 'REG', '정규시즌',    'Regular Season', '정규시즌 경기'),
+('GAME_TYPE', 'WC',  '와일드카드',  'Wild Card',      '포스트시즌 와일드카드 경기'),
+('GAME_TYPE', 'SP',  '준플레이오프','Semi-Playoff',   '포스트시즌 준플레이오프'),
+('GAME_TYPE', 'PO',  '플레이오프',  'Playoff',        '포스트시즌 플레이오프'),
+('GAME_TYPE', 'KS',  '한국시리즈',  'Korean Series',  '한국시리즈');
+
+-- SSNT_STTS — 시즌 상태코드
+INSERT IGNORE INTO CMN_CD (CD_ID, CD_VAL, CD_NM, CD_ENG_NM, CD_DESC) VALUES
+('SSNT_STTS', 'PRE',  '프리시즌',  'Pre-Season',     '계약, 스프링캠프, 연습경기, 로스터 구성'),
+('SSNT_STTS', 'REG',  '정규시즌',  'Regular Season', '경기 진행, 콜업·말소, 트레이드, 부상 관리'),
+('SSNT_STTS', 'POST', '포스트시즌','Post-Season',    '엔트리 고정, 플레이오프 경기 진행'),
+('SSNT_STTS', 'OFF',  '오프시즌',  'Off-Season',     'FA 계약, 방출, 드래프트, 연봉 협상'),
+('SSNT_STTS', 'CMPL', '완료',      'Completed',      '기록 보관, 수상 확정, 다음 시즌 생성');
+
+-- SRS_STTS — 포스트시즌 시리즈 상태코드
+INSERT IGNORE INTO CMN_CD (CD_ID, CD_VAL, CD_NM, CD_ENG_NM, CD_DESC) VALUES
+('SRS_STTS', 'PROG', '진행중', 'In Progress', '시리즈 진행 중'),
+('SRS_STTS', 'CMPL', '완료',   'Completed',   '시리즈 종료');
+
+-- PSTSSNT_STTS — 팀 포스트시즌 진출 상태코드
+INSERT IGNORE INTO CMN_CD (CD_ID, CD_VAL, CD_NM, CD_ENG_NM, CD_DESC) VALUES
+('PSTSSNT_STTS', 'UNDC', '미결정',        'Undecided',           '포스트시즌 진출 여부 미결정'),
+('PSTSSNT_STTS', 'ELIM', '탈락',          'Eliminated',          '포스트시즌 탈락 확정'),
+('PSTSSNT_STTS', 'CLWC', '와일드카드 확정','Clinched Wild Card',  '와일드카드 진출 확정'),
+('PSTSSNT_STTS', 'CLPS', '포스트 확정',   'Clinched Postseason', '포스트시즌 직행 확정'),
+('PSTSSNT_STTS', 'CL1P', '1위 확정',      'Clinched 1st Place',  '정규시즌 1위 확정'),
+('PSTSSNT_STTS', 'CHMP', '우승',          'Champion',            '한국시리즈 우승');
+
+-- PLR_TRT_TYPE — 선수 특성코드
+INSERT IGNORE INTO CMN_CD (CD_ID, CD_VAL, CD_NM, CD_ENG_NM, CD_DESC) VALUES
+('PLR_TRT_TYPE', 'IRON', '금강불괴',      'Iron Body',         '부상 확률 크게 감소. IRK 히든 능력치 효과 무시'),
+('PLR_TRT_TYPE', 'GLAS', '유리몸',        'Glass Body',        '부상 확률 크게 증가. 경미한 충돌에도 부상 가능'),
+('PLR_TRT_TYPE', 'RCVR', '빠른 회복',     'Quick Recovery',    '부상 후 회복 기간 크게 단축'),
+('PLR_TRT_TYPE', 'LONG', '장수',          'Longevity',         '노화로 인한 능력치 하락 속도 둔화'),
+('PLR_TRT_TYPE', 'AGED', '노쇠화',        'Rapid Aging',       '능력치 하락 속도 빠름. 피크 이후 급격히 쇠퇴'),
+('PLR_TRT_TYPE', 'ERLB', '조숙',          'Early Bloomer',     '어린 나이에 빠르게 성장. 피크 도달 시기 빠름'),
+('PLR_TRT_TYPE', 'LATB', '만숙',          'Late Bloomer',      '늦게 성장. 커리어 후반까지 성장 가능'),
+('PLR_TRT_TYPE', 'ACEM', '에이스 기질',   'Ace Mentality',     '중요 경기(포스트시즌, 라이벌전)에서 투구 능력 상승'),
+('PLR_TRT_TYPE', 'CLSR', '마무리 기질',   'Closer Mentality',  '세이브 상황·9회에서 투구 집중력·효율 상승'),
+('PLR_TRT_TYPE', 'WKHS', '내구왕',        'Workhorse',         '많은 이닝 소화해도 구위 유지. STM 소모율 감소'),
+('PLR_TRT_TYPE', 'CTRL', '극도의 제구',   'Control Artist',    '볼넷 확률 크게 감소. 제구(CTL) 능력치 추가 보너스'),
+('PLR_TRT_TYPE', 'STRK', '탈삼진 머신',   'Strikeout Machine', '삼진 유도 확률 상승'),
+('PLR_TRT_TYPE', 'LHKL', '좌타자 킬러',   'Left-Hand Killer',  '좌타자 상대 효율 상승'),
+('PLR_TRT_TYPE', 'RHKL', '우타자 킬러',   'Right-Hand Killer', '우타자 상대 효율 상승'),
+('PLR_TRT_TYPE', 'CLTH', '클러치 히터',   'Clutch Hitter',     '득점권(1·2루, 만루)에서 타율·장타율 보너스'),
+('PLR_TRT_TYPE', 'PWRH', '파워 히터',     'Power Hitter',      '홈런·장타 확률 추가 보너스. PWR 능력치 연산 강화'),
+('PLR_TRT_TYPE', 'CTMN', '컨택 머신',     'Contact Machine',   '삼진 아웃 확률 크게 감소. 컨택(CNT) 능력치 연산 강화'),
+('PLR_TRT_TYPE', 'DSPY', '선구안',        'Plate Discipline',  '볼넷 선택 능력 향상. 헛스윙 감소'),
+('PLR_TRT_TYPE', 'BDBL', '배드볼 히터',   'Bad Ball Hitter',   '스트라이크존 외 공에도 강한 타격'),
+('PLR_TRT_TYPE', 'SPDM', '번개발',        'Speed Demon',       '도루 성공률·주루 능력 추가 보너스. RUN·STL 연산 강화'),
+('PLR_TRT_TYPE', 'COMP', '승부사',        'Competitor',        '중요 상황에서 집중력·결단력 상승. BGM 히든 능력치 효과 배가'),
+('PLR_TRT_TYPE', 'MNTL', '멘탈 강자',     'Mental Giant',      '연패·역경 속에서도 능력치 유지. 압박에 강함'),
+('PLR_TRT_TYPE', 'TPLR', '팀 플레이어',   'Team Player',       '팀 사기·분위기에 긍정적 영향. LDR 히든 능력치 효과 보조'),
+('PLR_TRT_TYPE', 'GRND', '악바리',        'Grinder',           '체력·컨디션 낮아도 능력치 감소 폭 작음'),
+('PLR_TRT_TYPE', 'DRTY', '더티 플레이어', 'Dirty Player',      '비매너 플레이 빈도 증가. DRT 히든 능력치 효과 배가'),
+('PLR_TRT_TYPE', 'SPRT', '스포츠맨',      'Sportsman',         '항상 클린 플레이. 퇴장·경고 확률 0');
+
+-- EVNT_TYPE — 나머지 이벤트 종류코드 (BRDCST 는 위에서 이미 삽입)
+INSERT IGNORE INTO CMN_CD (CD_ID, CD_VAL, CD_NM, CD_ENG_NM, CD_DESC) VALUES
+('EVNT_TYPE', 'INJ',       '부상',         'Injury',           '선수 부상 발생'),
+('EVNT_TYPE', 'RCV',       '부상 회복',    'Recovery',         '선수 부상 회복·복귀'),
+('EVNT_TYPE', 'TRD',       '트레이드',     'Trade',            '트레이드 발생'),
+('EVNT_TYPE', 'SIGN',      '계약',         'Sign',             '선수·스태프 계약 체결'),
+('EVNT_TYPE', 'REL',       '방출',         'Release',          '선수 방출'),
+('EVNT_TYPE', 'WARN',      '구단주 경고',  'Owner Warning',    '구단주로부터 경고 메시지'),
+('EVNT_TYPE', 'FAN',       '팬 반응',      'Fan Reaction',     '팬 여론 변화 알림'),
+('EVNT_TYPE', 'CALL',      '콜업 추천',    'Call Up',          '마이너 콜업 추천 알림'),
+('EVNT_TYPE', 'MVP',       '월간 MVP',     'Monthly MVP',      '월간 MVP 발표'),
+('EVNT_TYPE', 'POST',      '포스트시즌',   'Postseason',       '포스트시즌 진출 확정'),
+('EVNT_TYPE', 'REC',       '기록 달성',    'Record',           '개인·팀 기록 달성'),
+('EVNT_TYPE', 'NEWS',      '일반 뉴스',    'News',             '기타 일반 뉴스'),
+('EVNT_TYPE', 'STFF',      '스태프 선임',  'Staff Hire',       '감독·코치 선임 안내 이벤트. HTML 콘텐츠 + 선임 버튼 포함'),
+('EVNT_TYPE', 'GRWTH',     '성장',         'Growth',           '스프링캠프 후 선수 성장 결과'),
+('EVNT_TYPE', 'RCNF',      '로스터 확정',  'Roster Confirm',   '로스터 확정 요청 이벤트'),
+('EVNT_TYPE', 'FRGN_OVER', '외국인 초과',  'Foreign Over',     '1군 외국인 선수 3명 초과 경고'),
+('EVNT_TYPE', 'FRGN',      '외국인 계약',  'Foreign Contract', '외국인 선수 계약 체결/거절 결과'),
+('EVNT_TYPE', 'FRGN_OPEN', '용병계약시작', 'Foreign Open',     '외국인 선수 계약 기간 시작 안내 (2/1~2/10)'),
+('EVNT_TYPE', 'SPRNG',     '스프링캠프',   'Spring Camp',      '스프링 캠프 선택 필수 이벤트 (2/15 자동 발생)'),
+('EVNT_TYPE', 'STFF_AI',   '타 구단 선임', 'AI Staff Hire',    'AI 구단 감독·코치 선임 요약');
+
+-- SPRNG_CAMP_CFG 초기 데이터
+INSERT IGNORE INTO SPRNG_CAMP_CFG (CAMP_CD, CAMP_NM, COST, TIER, GROWTH_ABLT_CNT, MAX_GROWTH_PER_ABLT, MAX_OVRL_GROWTH) VALUES
+('DOMESTIC', '국내',      50000,  1, 2, 1, 1),
+('JEJU',     '제주',     100000,  2, 3, 1, 1),
+('TAIWAN',   '대만',     150000,  3, 3, 2, 2),
+('OKINAWA',  '오키나와', 200000,  4, 4, 2, 2),
+('FLORIDA',  '플로리다', 250000,  5, 4, 3, 3),
+('MIAMI',    '마이애미', 300000,  6, 5, 3, 3),
+('ARIZONA',  '애리조나', 400000,  7, 6, 4, 4);

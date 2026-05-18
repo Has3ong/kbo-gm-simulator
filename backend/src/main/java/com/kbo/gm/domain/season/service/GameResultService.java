@@ -35,7 +35,7 @@ public class GameResultService {
 
             // Step 2: 경기 점수 시뮬레이션 및 결과 저장
             emit(emitter, 2, ssntYr, gameDt, "경기 점수 시뮬레이션 중... (" + games.size() + "경기)", false);
-            List<Map<String, Object>> results = simulateAndSaveGames(games);
+            List<Map<String, Object>> results = simulateAndSaveGames(games, ssntYr);
 
             // Step 3: 선수 경기 기록 저장
             emit(emitter, 3, ssntYr, gameDt, "선수 경기 기록 저장 중...", false);
@@ -81,7 +81,7 @@ public class GameResultService {
     public void processGamesInternal(int ssntYr, String gameDt) {
         List<Map<String, Object>> games = mapper.findGamesOnDate(ssntYr, gameDt);
         if (games.isEmpty()) return;
-        List<Map<String, Object>> results = simulateAndSaveGames(games);
+        List<Map<String, Object>> results = simulateAndSaveGames(games, ssntYr);
         savePlayerGameRecords(results, ssntYr);
         updateStandings(results, ssntYr);
         applyFatigueCondition(results, ssntYr);
@@ -93,7 +93,7 @@ public class GameResultService {
     // ----- Step 2: 경기 시뮬레이션 -----
 
     @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> simulateAndSaveGames(List<Map<String, Object>> games) {
+    private List<Map<String, Object>> simulateAndSaveGames(List<Map<String, Object>> games, int ssntYr) {
         List<Map<String, Object>> results = new ArrayList<>();
         Random rnd = new Random();
 
@@ -102,13 +102,17 @@ public class GameResultService {
             long homeTmId = toLong(game.get("HOME_TM_ID"));
             long awayTmId = toLong(game.get("AWAY_TM_ID"));
 
-            // 타자/투수 라인업 조회
-            List<Map<String, Object>> homeBatterList  = getLineupBatters(homeTmId);
-            List<Map<String, Object>> awayBatterList  = getLineupBatters(awayTmId);
-            List<Map<String, Object>> homePitcherList = getLineupPitchers(homeTmId);
-            List<Map<String, Object>> awayPitcherList = getLineupPitchers(awayTmId);
+            // 타자 라인업 조회
+            List<Map<String, Object>> homeBatterList = getLineupBatters(homeTmId);
+            List<Map<String, Object>> awayBatterList = getLineupBatters(awayTmId);
 
-            // 팀 타격/투구 능력치 계산
+            // 선발/불펜 투수 조회 (TM_ROTATION, TM_BULLPEN 기반)
+            Map<String, Object> homeStarter  = mapper.findStarterWithAbilities(homeTmId, ssntYr);
+            Map<String, Object> awayStarter  = mapper.findStarterWithAbilities(awayTmId, ssntYr);
+            List<Map<String, Object>> homeBullpen = mapper.findBullpenWithAbilities(homeTmId, ssntYr);
+            List<Map<String, Object>> awayBullpen = mapper.findBullpenWithAbilities(awayTmId, ssntYr);
+
+            // 팀 타격/투구 능력치 계산 (점수 시뮬레이션용)
             double homeBatting  = calcBattingRating(getAbilityList(homeTmId, false));
             double awayBatting  = calcBattingRating(getAbilityList(awayTmId, false));
             double homePitching = calcPitchingRating(getAbilityList(homeTmId, true));
@@ -139,10 +143,12 @@ public class GameResultService {
             result.put("HOME_SCORE", homeScore);
             result.put("AWAY_SCORE", awayScore);
             result.put("WIN_TM_ID", winTmId);
-            result.put("HOME_BATTING_PLAYERS",  homeBatterList);
-            result.put("AWAY_BATTING_PLAYERS",  awayBatterList);
-            result.put("HOME_PITCHING_PLAYERS", homePitcherList);
-            result.put("AWAY_PITCHING_PLAYERS", awayPitcherList);
+            result.put("HOME_BATTING_PLAYERS", homeBatterList);
+            result.put("AWAY_BATTING_PLAYERS", awayBatterList);
+            result.put("HOME_STARTER",  homeStarter);
+            result.put("HOME_BULLPEN",  homeBullpen);
+            result.put("AWAY_STARTER",  awayStarter);
+            result.put("AWAY_BULLPEN",  awayBullpen);
             results.add(result);
 
             log.debug("경기 시뮬레이션: GAME_ID={} {}:{} 최종{}:{}",
@@ -153,14 +159,17 @@ public class GameResultService {
 
     /** 팀의 타자 능력치(CNT, PWR) 목록 조회 — 능력치 평균 계산용 */
     private List<Map<String, Object>> getAbilityList(long tmId, boolean pitcher) {
-        String posnFilter = pitcher ? "AND p.REPR_POSN_CD = '10'" : "AND p.REPR_POSN_CD != '10'";
+        String posnFilter = pitcher ? "AND pc.REPR_POSN_CD = '10'" : "AND pc.REPR_POSN_CD != '10'";
         String abilities  = pitcher ? "'VEL', 'CTL', 'STM'" : "'CNT', 'PWR'";
         return jdbcTemplate.queryForList(
                 "SELECT pa.PLR_ID, pa.ABLT_CD, pa.ABLT_VAL " +
                 "FROM PLR_ENTY pe " +
                 "JOIN PLR p ON p.PLR_ID = pe.PLR_ID " +
                 "JOIN PLR_ABLT pa ON pa.PLR_ID = pe.PLR_ID " +
-                "WHERE pe.TM_ID = ? AND pe.ENTY_TYPE_CD = '1GUN' " +
+                "JOIN (SELECT PLR_ID, REPR_POSN_CD FROM PLR_TM_CNTRCT " +
+                "      WHERE FA_CNTRCT_END_DT >= CURDATE() OR FA_CNTRCT_END_DT IS NULL " +
+                "      GROUP BY PLR_ID) pc ON pc.PLR_ID = pe.PLR_ID " +
+                "WHERE pe.TM_ID = ? AND pe.ENTY_LVL_CD = '1' " +
                 "AND p.PLR_STTS_CD = 'AT' " + posnFilter + " " +
                 "AND pa.ABLT_CD IN (" + abilities + ")",
                 tmId);
@@ -176,29 +185,14 @@ public class GameResultService {
                 "FROM PLR_ENTY pe " +
                 "JOIN PLR p ON p.PLR_ID = pe.PLR_ID " +
                 "JOIN PLR_ABLT pa ON pa.PLR_ID = pe.PLR_ID " +
-                "WHERE pe.TM_ID = ? AND pe.ENTY_TYPE_CD = '1GUN' " +
-                "AND p.PLR_STTS_CD = 'AT' AND p.REPR_POSN_CD != '10' " +
+                "JOIN (SELECT PLR_ID, REPR_POSN_CD FROM PLR_TM_CNTRCT " +
+                "      WHERE FA_CNTRCT_END_DT >= CURDATE() OR FA_CNTRCT_END_DT IS NULL " +
+                "      GROUP BY PLR_ID) pc ON pc.PLR_ID = pe.PLR_ID " +
+                "WHERE pe.TM_ID = ? AND pe.ENTY_LVL_CD = '1' " +
+                "AND p.PLR_STTS_CD = 'AT' AND pc.REPR_POSN_CD != '10' " +
                 "AND pa.ABLT_CD IN ('CNT', 'PWR', 'STL') " +
                 "GROUP BY pe.PLR_ID " +
                 "ORDER BY pe.PLR_ID LIMIT 9",
-                tmId);
-    }
-
-    /** 팀 라인업 투수 상세 정보 (VEL, CTL, STM) 최대 5명 */
-    private List<Map<String, Object>> getLineupPitchers(long tmId) {
-        return jdbcTemplate.queryForList(
-                "SELECT pe.PLR_ID, p.POSN_CD, " +
-                "MAX(CASE WHEN pa.ABLT_CD='VEL' THEN pa.ABLT_VAL END) AS VEL, " +
-                "MAX(CASE WHEN pa.ABLT_CD='CTL' THEN pa.ABLT_VAL END) AS CTL, " +
-                "MAX(CASE WHEN pa.ABLT_CD='STM' THEN pa.ABLT_VAL END) AS STM " +
-                "FROM PLR_ENTY pe " +
-                "JOIN PLR p ON p.PLR_ID = pe.PLR_ID " +
-                "JOIN PLR_ABLT pa ON pa.PLR_ID = pe.PLR_ID " +
-                "WHERE pe.TM_ID = ? AND pe.ENTY_TYPE_CD = '1GUN' " +
-                "AND p.PLR_STTS_CD = 'AT' AND p.REPR_POSN_CD = '10' " +
-                "AND pa.ABLT_CD IN ('VEL', 'CTL', 'STM') " +
-                "GROUP BY pe.PLR_ID, p.POSN_CD " +
-                "ORDER BY FIELD(p.POSN_CD, '10', '11', '12') LIMIT 5",
                 tmId);
     }
 
@@ -263,32 +257,34 @@ public class GameResultService {
         Random rnd = new Random();
 
         for (Map<String, Object> r : results) {
-            long gameId   = toLong(r.get("GAME_ID"));
-            long homeTmId = toLong(r.get("HOME_TM_ID"));
-            long awayTmId = toLong(r.get("AWAY_TM_ID"));
+            long gameId    = toLong(r.get("GAME_ID"));
+            long homeTmId  = toLong(r.get("HOME_TM_ID"));
+            long awayTmId  = toLong(r.get("AWAY_TM_ID"));
             int  homeScore = toInt(r.get("HOME_SCORE"));
             int  awayScore = toInt(r.get("AWAY_SCORE"));
-            Long winTmId  = (Long) r.get("WIN_TM_ID");
+            Long winTmId   = (Long) r.get("WIN_TM_ID");
 
             List<Map<String, Object>> homeBatters  = (List<Map<String, Object>>) r.get("HOME_BATTING_PLAYERS");
             List<Map<String, Object>> awayBatters  = (List<Map<String, Object>>) r.get("AWAY_BATTING_PLAYERS");
-            List<Map<String, Object>> homePitchers = (List<Map<String, Object>>) r.get("HOME_PITCHING_PLAYERS");
-            List<Map<String, Object>> awayPitchers = (List<Map<String, Object>>) r.get("AWAY_PITCHING_PLAYERS");
+            Map<String, Object>       homeStarter  = (Map<String, Object>) r.get("HOME_STARTER");
+            List<Map<String, Object>> homeBullpen  = (List<Map<String, Object>>) r.get("HOME_BULLPEN");
+            Map<String, Object>       awayStarter  = (Map<String, Object>) r.get("AWAY_STARTER");
+            List<Map<String, Object>> awayBullpen  = (List<Map<String, Object>>) r.get("AWAY_BULLPEN");
 
             if (homeBatters == null) homeBatters = Collections.emptyList();
             if (awayBatters == null) awayBatters = Collections.emptyList();
-            if (homePitchers == null) homePitchers = Collections.emptyList();
-            if (awayPitchers == null) awayPitchers = Collections.emptyList();
+            if (homeBullpen == null) homeBullpen = Collections.emptyList();
+            if (awayBullpen == null) awayBullpen = Collections.emptyList();
 
-            // 타자 기록 저장
             saveBatterRecords(homeBatters, gameId, homeTmId, ssntYr, rnd);
             saveBatterRecords(awayBatters, gameId, awayTmId, ssntYr, rnd);
 
-            // 투수 기록 저장
-            boolean homeWon = winTmId != null && winTmId.equals(homeTmId);
-            boolean awayWon = winTmId != null && winTmId.equals(awayTmId);
-            savePitcherRecords(homePitchers, gameId, homeTmId, ssntYr, homeWon, awayScore, rnd);
-            savePitcherRecords(awayPitchers, gameId, awayTmId, ssntYr, awayWon, homeScore, rnd);
+            boolean homeWon   = winTmId != null && winTmId.equals(homeTmId);
+            boolean awayWon   = winTmId != null && winTmId.equals(awayTmId);
+            int     scoreDiff = Math.abs(homeScore - awayScore);
+
+            savePitcherRecords(homeStarter, homeBullpen, gameId, homeTmId, ssntYr, homeWon, awayScore, scoreDiff, rnd);
+            savePitcherRecords(awayStarter, awayBullpen, gameId, awayTmId, ssntYr, awayWon, homeScore, scoreDiff, rnd);
         }
     }
 
@@ -345,74 +341,162 @@ public class GameResultService {
         }
     }
 
-    private void savePitcherRecords(List<Map<String, Object>> pitchers, long gameId, long tmId,
-                                    int ssntYr, boolean teamWon, int runsAllowed, Random rnd) {
-        // 최대 3명 처리 (SP, RP, CP)
-        int maxPitchers = Math.min(3, pitchers.size());
-        for (int idx = 0; idx < maxPitchers; idx++) {
-            Map<String, Object> pitcher = pitchers.get(idx);
-            long plrId = toLong(pitcher.get("PLR_ID"));
+    /**
+     * SP/RP/CL 역할 기반 투수 기록 저장
+     * SP: STM 기반 이닝(STM20→4이닝, STM50→5.2이닝, STM80→7이닝)
+     * MR(중간계투) → SU(셋업맨) → CL(마무리) 순 등판
+     * SP 승: 5이닝(15아웃) 이상 & 팀 승리 / CL 세이브: 3점 이내 접전 마무리 / SU 홀드: 세이브 상황 유지
+     */
+    private void savePitcherRecords(Map<String, Object> starter,
+                                    List<Map<String, Object>> bullpen,
+                                    long gameId, long tmId, int ssntYr,
+                                    boolean teamWon, int runsAllowed, int scoreDiff, Random rnd) {
+        if (starter == null || toLong(starter.get("PLR_ID")) == 0) return;
+
+        int spStm  = toInt(starter.get("STM")); if (spStm  == 0) spStm  = 50;
+        int spBase = 12 + (int) Math.round((spStm - 20.0) / 60.0 * 9); // stm20→12, stm50→17, stm80→21
+        int spOuts = Math.max(12, Math.min(24, spBase + rnd.nextInt(5) - 2));
+
+        List<Map<String, Object>> mrList = new ArrayList<>();
+        List<Map<String, Object>> suList = new ArrayList<>();
+        Map<String, Object>       clMap  = null;
+        for (Map<String, Object> p : bullpen) {
+            String role = (String) p.get("ROLE_CD");
+            if      ("CL".equals(role) && clMap == null) clMap = p;
+            else if ("SU".equals(role))                  suList.add(p);
+            else                                         mrList.add(p);
+        }
+
+        List<Map<String, Object>> pData  = new ArrayList<>();
+        List<String>              pRole  = new ArrayList<>();
+        List<Integer>             pOuts  = new ArrayList<>();
+
+        int remaining = 27 - spOuts;
+        if (remaining <= 0) {
+            pData.add(starter); pRole.add("SP"); pOuts.add(27);
+        } else {
+            pData.add(starter); pRole.add("SP"); pOuts.add(spOuts);
+
+            boolean closeGame = teamWon && scoreDiff <= 3;
+            int clOuts = (clMap != null && closeGame) ? 3 : 0;
+            int suOuts = (!suList.isEmpty() && clOuts > 0) ? (3 + rnd.nextInt(3)) : 0;
+            int mrOuts = Math.max(0, remaining - clOuts - suOuts);
+
+            if (mrOuts > 0 && !mrList.isEmpty()) {
+                int assigned = 0;
+                for (int i = 0; i < mrList.size() && assigned < mrOuts; i++) {
+                    int per  = Math.max(3, mrOuts / mrList.size());
+                    int outs = (i == mrList.size() - 1)
+                             ? mrOuts - assigned
+                             : Math.min(per + rnd.nextInt(3) - 1, mrOuts - assigned);
+                    outs = Math.max(1, outs);
+                    pData.add(mrList.get(i)); pRole.add("MR"); pOuts.add(outs);
+                    assigned += outs;
+                }
+            }
+            if (suOuts > 0 && !suList.isEmpty()) { pData.add(suList.get(0)); pRole.add("SU"); pOuts.add(suOuts); }
+            if (clOuts > 0)                       { pData.add(clMap);        pRole.add("CL"); pOuts.add(clOuts); }
+        }
+
+        int[] runs = distributeRuns(pOuts, runsAllowed, rnd);
+
+        int[] wArr   = new int[pData.size()];
+        int[] lArr   = new int[pData.size()];
+        int[] svArr  = new int[pData.size()];
+        int[] hldArr = new int[pData.size()];
+
+        if (teamWon) {
+            if (pOuts.get(0) >= 15) {
+                wArr[0] = 1;
+            } else {
+                for (int i = 1; i < pRole.size(); i++) {
+                    if (!"CL".equals(pRole.get(i))) { wArr[i] = 1; break; }
+                }
+            }
+            if (scoreDiff <= 3) {
+                for (int i = 0; i < pRole.size(); i++) {
+                    if ("CL".equals(pRole.get(i))) {
+                        svArr[i] = 1;
+                        for (int j = 0; j < i; j++) { if ("SU".equals(pRole.get(j))) hldArr[j] = 1; }
+                        break;
+                    }
+                }
+            }
+        } else {
+            lArr[0] = 1;
+        }
+
+        for (int i = 0; i < pData.size(); i++) {
+            Map<String, Object> data   = pData.get(i);
+            String              roleCd = pRole.get(i);
+            int                 ipOut  = pOuts.get(i);
+            long                plrId  = toLong(data.get("PLR_ID"));
             if (plrId == 0) continue;
 
-            int vel = toInt(pitcher.get("VEL"));
-            if (vel == 0) vel = 50;
-            int ctl = toInt(pitcher.get("CTL"));
-            if (ctl == 0) ctl = 50;
-            int stm = toInt(pitcher.get("STM"));
-            if (stm == 0) stm = 50;
-
-            // 포지션/역할 결정
-            String ptchRoleCd;
-            int baseIpOut;
-            if (idx == 0) {
-                ptchRoleCd = "SP";
-                baseIpOut  = 15 + (rnd.nextInt(7) - 3); // 12~18
-            } else if (idx == maxPitchers - 1 && maxPitchers >= 3) {
-                ptchRoleCd = "CP";
-                baseIpOut  = 3;
-            } else {
-                ptchRoleCd = "RP";
-                baseIpOut  = 3 + rnd.nextInt(4); // 3~6
-            }
-            int ipOut = Math.max(1, baseIpOut);
+            int vel = toInt(data.get("VEL")); if (vel == 0) vel = 50;
+            int ctl = toInt(data.get("CTL")); if (ctl == 0) ctl = 50;
 
             double kRate  = Math.min(0.40, Math.max(0.10, 0.15 + (vel - 20.0) / 60.0 * 0.20));
             double bbRate = Math.min(0.15, Math.max(0.02, 0.10 - (ctl - 20.0) / 60.0 * 0.07));
+            int k   = binomialCount(ipOut, kRate, rnd);
+            int bb  = binomialCount(ipOut, bbRate, rnd);
+            int h   = Math.max(0, (int) Math.round(ipOut * (1.0 - kRate) * 0.8));
+            int r   = runs[i];
+            int er  = r > 0 ? Math.max(0, r - rnd.nextInt(Math.max(1, r / 2 + 1))) : 0;
+            int bf  = ipOut + h + bb;
+            int w   = wArr[i]; int l  = lArr[i]; int sv  = svArr[i]; int hld = hldArr[i];
 
-            int k  = binomialCount(ipOut, kRate, rnd);
-            int bb = binomialCount(ipOut, bbRate, rnd);
-            int hAllowed = (int) Math.ceil(ipOut * (1.0 - kRate));
-            int er = (int) Math.round(hAllowed * 0.35);
-
-            // 승/패/세이브 결정
-            int w = 0, l = 0, sv = 0;
-            if (idx == 0) { // SP
-                if (teamWon && ipOut >= 15) w = 1;       // 5이닝 이상 (15아웃) 완투 승리
-                else if (!teamWon && ipOut >= 12) l = 1; // 4이닝 이상 책임 패
-            } else if ("CP".equals(ptchRoleCd) && teamWon) {
-                sv = 1;
-            }
-
-            int bf = ipOut + hAllowed + bb;
+            boolean isSp = "SP".equals(roleCd);
+            boolean isCg = isSp && pData.size() == 1;
+            int qs  = (isSp && ipOut >= 18 && er <= 3) ? 1 : 0;
+            int cg  = isCg ? 1 : 0;
+            int sho = (isCg && runsAllowed == 0) ? 1 : 0;
+            int nh  = (isCg && h == 0) ? 1 : 0;
+            int pg  = (nh == 1 && bb == 0) ? 1 : 0;
 
             jdbcTemplate.update(
                     "INSERT IGNORE INTO PLR_PTCH_GAME_REC " +
-                    "(PLR_ID, GAME_ID, TM_ID, PTCH_ROLE_CD, IP_OUT, BF, H, DOBL, TRPL, HR, R, ER, BB, IBB, SO, HBP, W, L, SV, HLD, BSV, CG, SHO, PITCHES, STRIKES) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, 0, ?, 0, ?, ?, ?, 0, 0, 0, 0, ?, ?)",
-                    plrId, gameId, tmId, ptchRoleCd, ipOut, bf,
-                    hAllowed, runsAllowed, er, bb, k, w, l, sv,
+                    "(PLR_ID, GAME_ID, TM_ID, PTCH_ROLE_CD, IP_OUT, BF, H, DOBL, TRPL, HR, R, ER, BB, IBB, SO, HBP, W, L, SV, HLD, BSV, CG, SHO, QS, NH, PG, PITCHES, STRIKES) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, 0, ?, 0, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)",
+                    plrId, gameId, tmId, roleCd, ipOut, bf, h, r, er, bb, k,
+                    w, l, sv, hld, cg, sho, qs, nh, pg,
                     (int)(ipOut * 3.8), (int)(ipOut * 2.5));
 
-            // 시즌 누적 기록 UPSERT
             jdbcTemplate.update(
-                    "INSERT INTO PLR_PTCH_SSNT_REC (PLR_ID, SSNT_YR, IP_OUT, BF, H, R, ER, BB, SO, W, L, SV, HLD) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0) " +
+                    "INSERT INTO PLR_PTCH_SSNT_REC " +
+                    "(PLR_ID, SSNT_YR, G, GS, IP_OUT, BF, H, R, ER, BB, SO, W, L, SV, HLD, QS, CG, SHO, NH, PG) " +
+                    "VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
                     "ON DUPLICATE KEY UPDATE " +
-                    "IP_OUT=IP_OUT+VALUES(IP_OUT), BF=BF+VALUES(BF), H=H+VALUES(H), " +
-                    "R=R+VALUES(R), ER=ER+VALUES(ER), BB=BB+VALUES(BB), SO=SO+VALUES(SO), " +
-                    "W=W+VALUES(W), L=L+VALUES(L), SV=SV+VALUES(SV)",
-                    plrId, ssntYr, ipOut, bf, hAllowed, runsAllowed, er, bb, k, w, l, sv);
+                    "G=G+1, GS=GS+VALUES(GS), IP_OUT=IP_OUT+VALUES(IP_OUT), " +
+                    "BF=BF+VALUES(BF), H=H+VALUES(H), R=R+VALUES(R), ER=ER+VALUES(ER), " +
+                    "BB=BB+VALUES(BB), SO=SO+VALUES(SO), W=W+VALUES(W), L=L+VALUES(L), " +
+                    "SV=SV+VALUES(SV), HLD=HLD+VALUES(HLD), QS=QS+VALUES(QS), " +
+                    "CG=CG+VALUES(CG), SHO=SHO+VALUES(SHO), NH=NH+VALUES(NH), PG=PG+VALUES(PG)",
+                    plrId, ssntYr, isSp ? 1 : 0,
+                    ipOut, bf, h, r, er, bb, k, w, l, sv, hld, qs, cg, sho, nh, pg);
+
+            jdbcTemplate.update(
+                    "UPDATE PLR_PTCH_SSNT_REC SET " +
+                    "ERA  = CASE WHEN IP_OUT > 0 THEN ROUND(ER * 27.0 / IP_OUT, 2) ELSE NULL END, " +
+                    "WHIP = CASE WHEN IP_OUT > 0 THEN ROUND((BB + H) * 3.0 / IP_OUT, 3) ELSE NULL END " +
+                    "WHERE PLR_ID = ? AND SSNT_YR = ?",
+                    plrId, ssntYr);
         }
+    }
+
+    private int[] distributeRuns(List<Integer> outsList, int totalRuns, Random rnd) {
+        int[] runs = new int[outsList.size()];
+        if (outsList.isEmpty() || totalRuns == 0) return runs;
+        int totalOuts = outsList.stream().mapToInt(Integer::intValue).sum();
+        if (totalOuts == 0) { runs[runs.length - 1] = totalRuns; return runs; }
+        int assigned = 0;
+        for (int i = 0; i < outsList.size() - 1; i++) {
+            int prop = (int) Math.round((double) outsList.get(i) / totalOuts * totalRuns);
+            runs[i]  = Math.max(0, Math.min(prop + rnd.nextInt(3) - 1, totalRuns - assigned));
+            assigned += runs[i];
+        }
+        runs[outsList.size() - 1] = Math.max(0, totalRuns - assigned);
+        return runs;
     }
 
     // ----- Step 4: 순위 갱신 -----
@@ -479,10 +563,10 @@ public class GameResultService {
 
     private int grassLevelOf(long tmId, Map<Long, Integer> cache) {
         return cache.computeIfAbsent(tmId, id -> {
-            Integer lvl = jdbcTemplate.queryForObject(
-                    "SELECT FCLTY_LVL FROM TM_FCLTY WHERE TM_ID = ? AND FCLTY_TYPE_CD = 'GRSS'",
+            List<Integer> rows = jdbcTemplate.queryForList(
+                    "SELECT FCLTY_LVL FROM TM_FCLTY WHERE TM_ID = ? AND FCLTY_TYPE_CD = 'TRNG'",
                     Integer.class, id);
-            return lvl != null ? lvl : 1;
+            return rows.isEmpty() ? 1 : rows.get(0);
         });
     }
 
@@ -491,7 +575,7 @@ public class GameResultService {
         // - 레벨당 fatg 증가량 -0.5 (최대 -2)
         // - 레벨당 cond 감소 하한 +0.4 (최대 +1.6, 변동성 일부 상쇄)
         int grassStep = Math.max(0, grassLvl - 1);
-        List<Map<String, Object>> lineupRows = mapper.findLineup(tmId);
+        List<Map<String, Object>> lineupRows = mapper.findLineup(tmId, ssntYr);
         for (Map<String, Object> row : lineupRows) {
             long plrId = toLong(row.get("PLR_ID"));
             String reprPosnCd = (String) row.get("REPR_POSN_CD");
@@ -568,24 +652,24 @@ public class GameResultService {
             String awayNm = (String) r.get("AWAY_TM_KR_NM");
             Long winTmId = (Long) r.get("WIN_TM_ID");
 
-            String ttlt = homeNm + " " + homeScore + " : " + awayScore + " " + awayNm;
-            String cnts;
+            String resultTag;
             if (winTmId == null) {
-                cnts = String.format("[무승부] %s %d : %d %s — 승부를 가리지 못했습니다.", homeNm, homeScore, awayScore, awayNm);
+                resultTag = "무승부";
             } else if (winTmId.equals(userTmId)) {
-                cnts = String.format("[승리] %s %d : %d %s — 승리했습니다!", homeNm, homeScore, awayScore, awayNm);
+                resultTag = "승리";
             } else {
-                cnts = String.format("[패배] %s %d : %d %s — 아쉽게 패했습니다.", homeNm, homeScore, awayScore, awayNm);
+                resultTag = "패배";
             }
+            String ttlt = String.format("[%s] %s %d : %d %s", resultTag, homeNm, homeScore, awayScore, awayNm);
 
             Map<String, Object> ev = new HashMap<>();
             ev.put("ssntYr", ssntYr);
             ev.put("evntDt", gameDt);
             ev.put("tmId", userTmId);
             ev.put("plrId", null);
-            ev.put("evntTypeCd", "NEWS");
+            ev.put("evntTypeCd", "GAME");
             ev.put("evntTtlt", ttlt);
-            ev.put("evntCnts", cnts);
+            ev.put("evntCnts", gameDt); // 프론트에서 경기 날짜로 기록 조회
             events.add(ev);
         }
 

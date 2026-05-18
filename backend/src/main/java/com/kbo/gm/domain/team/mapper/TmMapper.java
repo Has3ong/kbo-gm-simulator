@@ -48,4 +48,13 @@ public interface TmMapper {
                         @Param("bfrSeatCnt") int bfrSeatCnt, @Param("aftSeatCnt") int aftSeatCnt,
                         @Param("expnCost") long expnCost,
                         @Param("bgngDt") LocalDate bgngDt, @Param("endDt") LocalDate endDt);
+
+    // 재정 상세 이력 조회
+    List<TmFinLogDao> findFinanceLog(@Param("tmId") Long tmId);
+
+    // 재정 이력 등록
+    void insertFinanceLog(@Param("tmId") Long tmId, @Param("ssntYr") int ssntYr,
+                          @Param("logDt") String logDt, @Param("logTypeCd") String logTypeCd,
+                          @Param("logCtgrCd") String logCtgrCd, @Param("amount") long amount,
+                          @Param("memo") String memo);
 }

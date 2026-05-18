@@ -11,4 +11,10 @@ export const cmnCdApi = {
 
   update: (cdId: string, cdVal: string, data: Partial<Pick<CmnCd, 'cdNm' | 'cdEngNm' | 'cdDesc'>>) =>
     client.put<ApiResponse<null>>(`/common/codes/${cdId}/${cdVal}`, data).then((r) => r.data),
+
+  create: (data: CmnCd) =>
+    client.post<ApiResponse<null>>('/common/codes', data).then((r) => r.data),
+
+  delete: (cdId: string, cdVal: string) =>
+    client.delete<ApiResponse<null>>(`/common/codes/${cdId}/${cdVal}`).then((r) => r.data),
 }

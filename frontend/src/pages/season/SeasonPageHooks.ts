@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import {
   useSeason, useSeasonEvents, useMarkEventRead,
   useAdvanceCheck, useAdvanceSeason, useAdvanceToSpring, useStandings,
@@ -11,6 +11,7 @@ import { useBrdcstSpnsrs, useSelectBrdcstSpnsr } from '../../hooks/useBroadcast'
 import { SSNT_STTS_LABEL } from '../../types/season'
 import { CURRENT_SEASON_YEAR } from '../../constants'
 import type { EventProgress } from '../../components/EventProgressDialog'
+import type { AdvanceWeekProgress } from '../../components/AdvanceWeekDialog'
 import { useGame } from '../../contexts/GameContext'
 import { useTeamMetaStore } from '../../stores/teamMetaStore'
 
@@ -24,6 +25,7 @@ export function useSeasonPage() {
   const [gameSimOpen, setGameSimOpen] = useState(false)
   const [gameSimProgress, setGameSimProgress] = useState<EventProgress | null>(null)
   const gameSimEsRef = useRef<EventSource | null>(null)
+  const [autoSelectGameDt, setAutoSelectGameDt] = useState<string | null>(null)
 
   // 월간 처리 팝업
   const [monthlyOpen, setMonthlyOpen] = useState(false)
@@ -42,8 +44,9 @@ export function useSeasonPage() {
 
   // 다음주까지 진행하기 팝업
   const [advanceWeekOpen, setAdvanceWeekOpen] = useState(false)
-  const [advanceWeekProgress, setAdvanceWeekProgress] = useState<EventProgress | null>(null)
+  const [advanceWeekProgress, setAdvanceWeekProgress] = useState<AdvanceWeekProgress | null>(null)
   const advanceWeekEsRef = useRef<EventSource | null>(null)
+  const advanceWeekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // 감독·코치 선임 모달
   const [staffHireOpen, setStaffHireOpen] = useState(false)
@@ -74,13 +77,13 @@ export function useSeasonPage() {
   const { data: season } = useSeason(ssntYr)
   const { data: standings = [] } = useStandings(ssntYr)
   const userStanding = standings.find((s) => s.tmId === userTmId) ?? null
-  const { data: eventsData, isLoading } = useSeasonEvents(ssntYr, eventsPage, PAGE_SIZE)
+  const { data: eventsData, isLoading } = useSeasonEvents(ssntYr, eventsPage, PAGE_SIZE, userTmId ?? undefined)
   const events = eventsData?.content ?? []
   const eventsTotalPages = eventsData?.totalPages ?? 0
   const eventsTotalElements = eventsData?.totalElements ?? 0
 
   const reloadEventsMutation = useMutation({
-    mutationFn: () => seasonApi.getEvents(ssntYr, { page: eventsPage, size: PAGE_SIZE }),
+    mutationFn: () => seasonApi.getEvents(ssntYr, { page: eventsPage, size: PAGE_SIZE, ...(userTmId ? { tmId: userTmId } : {}) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: seasonKeys.events(ssntYr) })
     },
@@ -98,6 +101,16 @@ export function useSeasonPage() {
   }
 
   const selectedEvent = events.find((e) => e.evntId === selectedEvntId) ?? null
+
+  // 경기 완료 후 GAME 이벤트 자동 선택
+  useEffect(() => {
+    if (!autoSelectGameDt || events.length === 0) return
+    const gameEvent = events.find((e) => e.evntTypeCd === 'GAME' && e.evntDt === autoSelectGameDt)
+    if (gameEvent) {
+      setSelectedEvntId(gameEvent.evntId)
+      setAutoSelectGameDt(null)
+    }
+  }, [events, autoSelectGameDt])
 
   // ----- 감독·코치 선임 -----
 
@@ -156,6 +169,8 @@ export function useSeasonPage() {
         setTimeout(() => {
           refetchAdvanceCheck()
           qc.invalidateQueries({ queryKey: seasonKeys.events(ssntYr) })
+          setEventsPage(0)
+          setAutoSelectGameDt(gameDt)
         }, 800)
       }
       if (data.error) {
@@ -178,6 +193,7 @@ export function useSeasonPage() {
     setGameSimOpen(false)
     setGameSimProgress(null)
   }
+
 
   // ----- 날짜 진행 (월간/주간 자동 트리거) -----
 
@@ -328,35 +344,39 @@ export function useSeasonPage() {
 
   // ----- 다음주까지 진행하기 -----
 
-  function handleAdvanceWeek() {
+  const handleAdvanceWeek = useCallback(() => {
     setAdvanceWeekOpen(true)
-    setAdvanceWeekProgress({ step: 0, total: 0, message: '다음주 월요일까지 진행 준비 중...', done: false })
+    setAdvanceWeekProgress({
+      processedDays: 0, totalDays: 0,
+      currentDate: '', dayOfWeek: '', targetDate: '',
+      message: '다음주 월요일까지 진행 준비 중...', done: false, weeklyRequired: false,
+    })
 
     const es = new EventSource(`${API_BASE}/game/advance-week?ssntYr=${ssntYr}`)
     advanceWeekEsRef.current = es
 
     es.onmessage = (event) => {
-      const data: EventProgress & {
-        processedDays?: number; totalDays?: number;
-        currentDate?: string; targetDate?: string
-      } = JSON.parse(event.data)
-
-      setAdvanceWeekProgress({
-        step: data.processedDays ?? data.step,
-        total: data.totalDays ?? data.total,
-        message: data.message,
-        done: data.done,
-        error: data.error,
-      })
+      const data: AdvanceWeekProgress = JSON.parse(event.data)
+      setAdvanceWeekProgress(data)
 
       if (data.done) {
         es.close()
         advanceWeekEsRef.current = null
-        setTimeout(() => {
-          qc.invalidateQueries({ queryKey: seasonKeys.one(ssntYr) })
-          qc.invalidateQueries({ queryKey: seasonKeys.events(ssntYr) })
-          qc.invalidateQueries({ queryKey: seasonKeys.advanceCheck(ssntYr) })
-        }, 800)
+
+        // 시즌/이벤트 데이터 갱신
+        qc.invalidateQueries({ queryKey: seasonKeys.one(ssntYr) })
+        qc.invalidateQueries({ queryKey: seasonKeys.events(ssntYr) })
+        qc.invalidateQueries({ queryKey: seasonKeys.advanceCheck(ssntYr) })
+
+        if (data.weeklyRequired && data.targetDate) {
+          // 1.2초 후 advance-week 다이얼로그 닫고 주간 처리 시작
+          advanceWeekTimerRef.current = setTimeout(() => {
+            advanceWeekTimerRef.current = null
+            setAdvanceWeekOpen(false)
+            setAdvanceWeekProgress(null)
+            triggerWeeklyProcess(ssntYr, data.targetDate)
+          }, 1200)
+        }
       }
       if (data.error) {
         es.close()
@@ -370,9 +390,14 @@ export function useSeasonPage() {
         prev ? { ...prev, error: '서버 연결이 끊어졌습니다.' } : null
       )
     }
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ssntYr])
 
   function closeAdvanceWeek() {
+    if (advanceWeekTimerRef.current) {
+      clearTimeout(advanceWeekTimerRef.current)
+      advanceWeekTimerRef.current = null
+    }
     advanceWeekEsRef.current?.close()
     advanceWeekEsRef.current = null
     setAdvanceWeekOpen(false)

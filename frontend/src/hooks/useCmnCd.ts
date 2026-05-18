@@ -35,3 +35,26 @@ export function useUpdateCmnCd() {
     },
   })
 }
+
+export function useCreateCmnCd() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: CmnCd) => cmnCdApi.create(data),
+    onSuccess: (_result, data) => {
+      qc.invalidateQueries({ queryKey: cmnCdKeys.byCdId(data.cdId) })
+      qc.invalidateQueries({ queryKey: cmnCdKeys.all })
+    },
+  })
+}
+
+export function useDeleteCmnCd() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ cdId, cdVal }: { cdId: string; cdVal: string }) =>
+      cmnCdApi.delete(cdId, cdVal),
+    onSuccess: (_result, { cdId }) => {
+      qc.invalidateQueries({ queryKey: cmnCdKeys.byCdId(cdId) })
+      qc.invalidateQueries({ queryKey: cmnCdKeys.all })
+    },
+  })
+}

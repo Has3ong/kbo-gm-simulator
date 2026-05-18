@@ -14,4 +14,6 @@ public interface CmnCdMapper {
     void updateCode(@Param("cdId") String cdId, @Param("cdVal") String cdVal,
                     @Param("cdNm") String cdNm, @Param("cdEngNm") String cdEngNm,
                     @Param("cdDesc") String cdDesc);
+    void insertCode(CmnCd code);
+    void deleteCode(@Param("cdId") String cdId, @Param("cdVal") String cdVal);
 }
