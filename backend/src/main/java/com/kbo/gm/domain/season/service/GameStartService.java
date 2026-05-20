@@ -310,36 +310,47 @@ public class GameStartService {
     }
 
     // ----- Step 2: 비기초 데이터 일괄 삭제 -----
-    // 팀·선수·구장 기초 데이터(TM, PLR, STDM 계열)는 유지한다.
-    // 1982~2025 실제 기록(PLR_BATR/PTCH_SSNT_REC, PLR_ABLT_SSNT)은 기초 데이터로 유지한다.
+    // SSNT_YR 없는 테이블: 전체 DELETE (게임 생성 데이터만 존재)
+    // SSNT_YR 있는 테이블: DELETE WHERE SSNT_YR >= ssntYr (역대 실적 기록 보호)
 
-    private static final List<String> NON_BASE_TABLES = List.of(
-            "TM_BULLPEN", "TM_ROTATION", "TM_LINEUP", "GAME_CFG",
-            "PLR_ENTY_HIST", "PLR_ENTY",
+    // SSNT_YR 컬럼 없음 → 전체 삭제 (FK 순서: 자식 먼저)
+    private static final List<String> NO_SSNT_YR_TABLES = List.of(
+            // GAME 자식
             "PLR_BATR_GAME_REC", "PLR_PTCH_GAME_REC",
-            "PLR_BATR_MON_REC", "PLR_PTCH_MON_REC",
-            "PLR_BATR_TM_SSNT_REC", "PLR_PTCH_TM_SSNT_REC",
-            "TM_MON_REC", "TM_SSNT_REC",
-            "SSNT_EVNT", "PSTSSNT_GAME", "PSTSSNT_SRS", "GAME", "STND",
-            "PLR_POSN_SSNT", "PLR_ANSL_SAL_HIST",
-            "TM_FNC_SSNT", "TM_MKT_SSNT",
-            // 드래프트 (사용자 요청: 시즌 시작 시 초기화)
-            "DRFT_BOARD", "DRFT_ORD", "DRFT_SCUT_RPT", "DRFT_PLR", "DRFT",
-            // 외국인 후보·오퍼 (게임 중 생성)
-            "FRGN_PLR_OFFER", "FRGN_PLR_CAND_STAT", "FRGN_PLR_CAND_ABLT", "FRGN_PLR_CAND",
-            // 방송국 계약 (게임 중 체결)
-            "TM_BRDCST",
+            // DRFT 자식
+            "DRFT_BOARD", "DRFT_ORD", "DRFT_SCUT_RPT", "DRFT_PLR",
+            // FRGN_PLR_CAND 자식
+            "FRGN_PLR_CAND_STAT", "FRGN_PLR_CAND_ABLT",
             // 스태프 (게임 중 선임)
             "STFF_CAND_ABLT", "STFF_CAND", "STFF_TM_CNTRCT", "STFF_TM", "STFF_ABLT", "STFF",
-            // 게임 중 누적 상태
-            "PLR_TM_CNTRCT_HIST", "PLR_FATG_COND", "PLR_GRWTH_LOG", "PLR_ABLT_MON",
-            "TM_FCLTY_UPGR", "STDM_EXPN",
-            "SSNT"
+            // 기타
+            "PLR_TM_CNTRCT_HIST", "TM_FCLTY_UPGR", "STDM_EXPN"
     );
 
-    // 기초 데이터 포함 테이블: 게임 시즌 연도(2026+) 레코드만 삭제
-    private static final List<String> HIST_TABLES_WITH_SSNT_YR = List.of(
-            "PLR_BATR_SSNT_REC", "PLR_PTCH_SSNT_REC", "PLR_ABLT_SSNT"
+    // SSNT_YR 컬럼 있음 → WHERE SSNT_YR >= ssntYr 삭제 (FK 순서: 자식 먼저)
+    private static final List<String> SSNT_YR_TABLES = List.of(
+            // 로스터 운영
+            "TM_BULLPEN", "TM_ROTATION", "TM_LINEUP",
+            "PLR_ENTY_HIST", "PLR_ENTY",
+            // 경기 기록 (월·시즌·누계)
+            "PLR_BATR_MON_REC", "PLR_PTCH_MON_REC",
+            "PLR_BATR_TM_SSNT_REC", "PLR_PTCH_TM_SSNT_REC",
+            "PLR_BATR_SSNT_REC", "PLR_PTCH_SSNT_REC",   // 역대 기록 포함 → SSNT_YR 조건 필수
+            // 팀 기록
+            "TM_MON_REC", "TM_SSNT_REC",
+            // 이벤트·경기
+            "SSNT_EVNT", "PSTSSNT_GAME", "PSTSSNT_SRS", "GAME",
+            // 순위·이력
+            "STND", "PLR_POSN_SSNT", "PLR_ANSL_SAL_HIST",
+            // 재정·시장
+            "TM_FIN_LOG", "TM_FNC_SSNT", "TM_MKT_SSNT",
+            // 드래프트·외국인·방송
+            "DRFT", "FRGN_PLR_OFFER", "FRGN_PLR_CAND", "TM_BRDCST",
+            // 선수 상태·성장
+            "PLR_FATG_COND", "PLR_GRWTH_LOG", "PLR_ABLT_MON",
+            "PLR_ABLT_SSNT",   // 역대 능력치 포함 → SSNT_YR 조건 필수
+            // 시즌 마스터 (마지막)
+            "SSNT"
     );
 
     private void deleteNonBaseData(int ssntYr) {
@@ -351,19 +362,20 @@ public class GameStartService {
             log.warn("게임 설정 초기화 건너뜀: {}", e.getMessage());
         }
 
-        for (String table : NON_BASE_TABLES) {
+        // SSNT_YR 없는 테이블: 전체 삭제
+        for (String table : NO_SSNT_YR_TABLES) {
             try {
                 jdbcTemplate.execute("DELETE FROM " + table);
             } catch (Exception e) {
                 log.warn("삭제 건너뜀: {} — {}", table, e.getMessage());
             }
         }
-        // 1982~2025 실제 기록은 유지, 게임 시즌 연도 이상만 삭제
-        for (String table : HIST_TABLES_WITH_SSNT_YR) {
+        // SSNT_YR 있는 테이블: 게임 시즌 연도 이상만 삭제 (역대 기록 보호)
+        for (String table : SSNT_YR_TABLES) {
             try {
                 jdbcTemplate.update("DELETE FROM " + table + " WHERE SSNT_YR >= ?", ssntYr);
             } catch (Exception e) {
-                log.warn("게임 기록 삭제 건너뜀: {} — {}", table, e.getMessage());
+                log.warn("시즌 데이터 삭제 건너뜀: {} — {}", table, e.getMessage());
             }
         }
 

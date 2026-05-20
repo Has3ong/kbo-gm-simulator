@@ -15,6 +15,7 @@ public interface GameMapper {
                           @Param("gameDt") LocalDate gameDt,
                           @Param("tmId") Long tmId);
     GameDao findById(@Param("gameId") Long gameId);
+    List<Map<String, Object>> findRotationPitchersByTeam(@Param("tmId") Long tmId, @Param("ssntYr") Integer ssntYr);
     List<Map<String, Object>> findBatterRecords(@Param("gameId") Long gameId);
     List<Map<String, Object>> findPitcherRecords(@Param("gameId") Long gameId);
 }

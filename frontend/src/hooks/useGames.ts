@@ -7,6 +7,7 @@ export const gameKeys = {
     ['games', params] as const,
   one: (gameId: number) => ['games', gameId] as const,
   records: (gameId: number) => ['games', gameId, 'records'] as const,
+  rotation: (tmId: number, ssntYr: number) => ['games', 'rotation', tmId, ssntYr] as const,
 }
 
 export function useGames(params?: { ssntYr?: number; mon?: number; gameDt?: string; tmId?: number }) {
@@ -30,5 +31,13 @@ export function useGameRecords(gameId: number | null) {
     queryKey: gameKeys.records(gameId ?? 0),
     queryFn: () => gameApi.getRecords(gameId!),
     enabled: !!gameId,
+  })
+}
+
+export function useRotationPitchers(tmId: number | null, ssntYr: number) {
+  return useQuery({
+    queryKey: gameKeys.rotation(tmId ?? 0, ssntYr),
+    queryFn: () => gameApi.getRotation(tmId!, ssntYr),
+    enabled: !!tmId && !!ssntYr,
   })
 }

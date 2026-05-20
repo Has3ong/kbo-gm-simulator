@@ -32,4 +32,8 @@ public class GameService {
             "pitchers", gameMapper.findPitcherRecords(gameId)
         );
     }
+
+    public List<Map<String, Object>> findRotationPitchersByTeam(Long tmId, Integer ssntYr) {
+        return gameMapper.findRotationPitchersByTeam(tmId, ssntYr);
+    }
 }

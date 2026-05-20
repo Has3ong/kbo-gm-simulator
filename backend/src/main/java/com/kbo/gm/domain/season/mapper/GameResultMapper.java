@@ -12,6 +12,9 @@ public interface GameResultMapper {
     List<Map<String, Object>> findLineup(@Param("tmId") long tmId, @Param("ssntYr") int ssntYr);
     Map<String, Object> findStarterWithAbilities(@Param("tmId") long tmId, @Param("ssntYr") int ssntYr);
     List<Map<String, Object>> findBullpenWithAbilities(@Param("tmId") long tmId, @Param("ssntYr") int ssntYr);
+    List<Map<String, Object>> findEntrantPitchersWithAbilities(@Param("tmId") long tmId);
+    Map<String, Object> findSpAbilitiesByPlrId(@Param("plrId") long plrId);
+    List<Map<String, Object>> findRotationPitchersByTeam(@Param("tmId") long tmId, @Param("ssntYr") int ssntYr);
     List<Map<String, Object>> findRotation(@Param("tmId") long tmId);
     List<Map<String, Object>> findBullpen(@Param("tmId") long tmId, @Param("ssntYr") int ssntYr);
     List<Map<String, Object>> findPlrFatgCond(@Param("plrId") long plrId, @Param("ssntYr") int ssntYr);

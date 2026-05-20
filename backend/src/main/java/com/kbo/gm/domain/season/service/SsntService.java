@@ -219,10 +219,10 @@ public class SsntService {
 
         // 팀별 평균 능력치 조회 (현역 선수 기준)
         List<Map<String, Object>> tmStats = jdbcTemplate.queryForList(
-            "SELECT p.TM_ID, t.TM_NM, AVG(p.PLR_OVRL_ABLT) AS avg_ovrl, COUNT(*) AS plr_cnt " +
+            "SELECT p.TM_ID, t.TM_KR_NM, AVG(p.PLR_OVRL_ABLT) AS avg_ovrl, COUNT(*) AS plr_cnt " +
             "FROM PLR p JOIN TM t ON p.TM_ID = t.TM_ID " +
             "WHERE p.PLR_STTS_CD='AT' " +
-            "GROUP BY p.TM_ID, t.TM_NM " +
+            "GROUP BY p.TM_ID, t.TM_KR_NM " +
             "ORDER BY avg_ovrl DESC");
 
         // 이벤트 내용 포맷
@@ -232,7 +232,7 @@ public class SsntService {
 
         int rank = 1;
         for (Map<String, Object> row : tmStats) {
-            String tmNm   = (String) row.get("TM_NM");
+            String tmNm   = (String) row.get("TM_KR_NM");
             double avgOvrl = row.get("avg_ovrl") instanceof Number n ? n.doubleValue() : 0.0;
             int    plrCnt  = row.get("plr_cnt")  instanceof Number n ? n.intValue()    : 0;
             sb.append(String.format("%-4s %-14s %-10.1f %d명%n",

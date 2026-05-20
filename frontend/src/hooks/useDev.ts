@@ -3,7 +3,8 @@ import { devApi } from '../api/devApi'
 import type { FcltyCostRow } from '../api/devApi'
 
 export const devKeys = {
-  fcltyCosts: ['dev', 'facility-costs'] as const,
+  fcltyCosts:         ['dev', 'facility-costs'] as const,
+  springCampStatus:   ['dev', 'spring-camp', 'status'] as const,
 }
 
 export function useFcltyCosts() {
@@ -19,6 +20,26 @@ export function useUpdateFcltyCosts() {
     mutationFn: (rows: FcltyCostRow[]) => devApi.updateFcltyCosts(rows),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: devKeys.fcltyCosts })
+    },
+  })
+}
+
+export function useSpringCampDevStatus() {
+  return useQuery({
+    queryKey: devKeys.springCampStatus,
+    queryFn: devApi.getSpringCampStatus,
+    refetchInterval: false,
+  })
+}
+
+export function useResetSpringCamp() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: devApi.resetSpringCamp,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: devKeys.springCampStatus })
+      qc.invalidateQueries({ queryKey: ['seasons'] })
+      qc.invalidateQueries({ queryKey: ['springCamp'] })
     },
   })
 }

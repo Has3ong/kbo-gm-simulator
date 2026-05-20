@@ -26,6 +26,7 @@ import SpringCampModal from '../../components/SpringCampModal'
 import ForeignPlayerModal from '../../components/ForeignPlayerModal'
 import GrowthDetailTable from '../../components/GrowthDetailTable'
 import GameResultsPanel from '../../components/GameResultsPanel'
+import TodaySpCard from '../../components/TodaySpCard'
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
   INJ: '부상', RCV: '회복', TRD: '트레이드', SIGN: '계약', REL: '방출',
@@ -183,6 +184,12 @@ export default function SeasonPage() {
             </Button>
           )}
 
+          {incompleteGames > 0 && userTmId && (
+            <TodaySpCard
+              ssntYr={ssntYr}
+              userTmId={userTmId}
+            />
+          )}
           {incompleteGames > 0 && (
             <Tooltip title={`오늘 ${incompleteGames}경기 시뮬레이션`} arrow>
               <Button
@@ -454,10 +461,10 @@ export default function SeasonPage() {
                 </Stack>
                 <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 2 }}>{selectedEvent.evntTtlt}</Typography>
                 <Divider sx={{ mb: 2 }} />
-                {selectedEvent.evntTypeCd === 'GAME' && selectedEvent.evntCnts ? (
+                {selectedEvent.evntTypeCd === 'GAME' ? (
                   <GameResultsPanel
                     ssntYr={ssntYr}
-                    gameDt={selectedEvent.evntCnts}
+                    gameDt={selectedEvent.evntDt}
                     userTmId={userTmId}
                   />
                 ) : selectedEvent.evntTypeCd === 'GRWTH' ? (

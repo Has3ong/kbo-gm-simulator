@@ -362,7 +362,7 @@ public class FrgnPlrService {
                     "SELECT ERA FROM PLR_PTCH_SSNT_REC WHERE PLR_ID=? AND SSNT_YR=?",
                     plrId, prevYr);
                 List<Map<String, Object>> batRec = jdbcTemplate.queryForList(
-                    "SELECT AVG FROM PLR_BATR_SSNT_REC WHERE PLR_ID=? AND SSNT_YR=?",
+                    "SELECT H, AB FROM PLR_BATR_SSNT_REC WHERE PLR_ID=? AND SSNT_YR=?",
                     plrId, prevYr);
 
                 // 이전 시즌 기록이 없으면 신규 외국인으로 간주, 평가 생략
@@ -379,7 +379,9 @@ public class FrgnPlrService {
                 } else {
                     // 타자 평가
                     plrTypeCd = "B";
-                    double avg = toDouble(batRec.get(0).get("AVG"));
+                    int h  = toInt(batRec.get(0).get("H"));
+                    int ab = toInt(batRec.get(0).get("AB"));
+                    double avg = ab > 0 ? (double) h / ab : 0.0;
                     if (avg < 0.240) isPoor = true;
                 }
 

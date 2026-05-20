@@ -16,12 +16,13 @@ import BusinessIcon from '@mui/icons-material/Business'
 import DeleteIcon from '@mui/icons-material/Delete'
 import AddIcon from '@mui/icons-material/Add'
 import TuneIcon from '@mui/icons-material/Tune'
-import { useFcltyCosts, useUpdateFcltyCosts } from '../../hooks/useDev'
+import { useFcltyCosts, useUpdateFcltyCosts, useSpringCampDevStatus, useResetSpringCamp } from '../../hooks/useDev'
 import { useCmnCdsByGroup, useUpdateCmnCd, useCreateCmnCd, useDeleteCmnCd } from '../../hooks/useCmnCd'
 import { useTeams } from '../../hooks/useTeams'
 import { useOwnerPrpnst, useUpsertOwnerPrpnst } from '../../hooks/useOwnerPrpnst'
 import { useFanPrpnst, useUpsertFanPrpnst } from '../../hooks/useFanPrpnst'
 import { useSpringCampCfg, useUpdateSpringCampCfg } from '../../hooks/useSpringCampCfg'
+import { useSpringCampLocations, useSelectSpringCamp } from '../../hooks/useSpringCamp'
 import type { FcltyCostRow } from '../../api/devApi'
 import type { CmnCd } from '../../types/common'
 import type { SpringCampCfg } from '../../api/springCampCfgApi'
@@ -283,6 +284,125 @@ function SpringCampCfgCard() {
 
       <Snackbar open={snackOpen} autoHideDuration={3000} onClose={() => setSnackOpen(false)} message="스프링 캠프 수치 저장 완료" />
     </>
+  )
+}
+
+// ───────────────────────────────── 스프링 캠프 진행 테스트 ──────────────────────────────────
+
+function SpringCampTestCard() {
+  const { data: status, isLoading: statusLoading, refetch: refetchStatus } = useSpringCampDevStatus()
+  const { data: locations = [], isLoading: locsLoading } = useSpringCampLocations()
+  const resetMutation    = useResetSpringCamp()
+  const selectMutation   = useSelectSpringCamp()
+
+  const [selectedLoc, setSelectedLoc] = useState('')
+  const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null)
+
+  const handleReset = async () => {
+    setResult(null)
+    try {
+      await resetMutation.mutateAsync()
+      await refetchStatus()
+      setResult({ ok: true, msg: '초기화 완료 — CUR_DT가 2월 1일로 되돌아갔습니다.' })
+    } catch (e) {
+      setResult({ ok: false, msg: `초기화 실패: ${(e as Error).message}` })
+    }
+  }
+
+  const handleRun = async () => {
+    if (!selectedLoc) return
+    setResult(null)
+    try {
+      await selectMutation.mutateAsync(selectedLoc)
+      await refetchStatus()
+      const locNm = locations.find((l) => l.code === selectedLoc)?.name ?? selectedLoc
+      setResult({ ok: true, msg: `스프링 캠프 완료 — ${locNm} 선택, CUR_DT가 3월 15일로 이동했습니다.` })
+    } catch (e) {
+      setResult({ ok: false, msg: `실행 실패: ${(e as Error).message}` })
+    }
+  }
+
+  const isPending = resetMutation.isPending || selectMutation.isPending
+
+  return (
+    <Paper variant="outlined" sx={{ p: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+        <SportsCricketIcon color="success" />
+        <Typography variant="h6" sx={{ fontWeight: 'bold' }}>스프링 캠프 진행 테스트</Typography>
+      </Box>
+
+      {/* 현재 상태 */}
+      <Box sx={{ mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+        {statusLoading ? (
+          <CircularProgress size={16} />
+        ) : (
+          <>
+            <Chip
+              label={status?.done ? '완료됨' : '미완료'}
+              color={status?.done ? 'success' : 'default'}
+              size="small"
+            />
+            {status?.locCd && (
+              <Chip label={`캠프: ${status.locCd}`} size="small" variant="outlined" />
+            )}
+            {status?.curDt && (
+              <Chip label={`CUR_DT: ${status.curDt}`} size="small" variant="outlined" color="info" />
+            )}
+          </>
+        )}
+      </Box>
+
+      {/* 캠프 선택 */}
+      <FormControl size="small" fullWidth sx={{ mb: 1.5 }} disabled={locsLoading || isPending}>
+        <InputLabel>캠프 위치</InputLabel>
+        <Select
+          value={selectedLoc}
+          label="캠프 위치"
+          onChange={(e) => setSelectedLoc(e.target.value)}
+        >
+          {locations.map((loc) => (
+            <MenuItem key={loc.code} value={loc.code}>
+              {loc.name} (Tier {loc.tier} / {loc.cost?.toLocaleString()}만원)
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+
+      {/* 결과 */}
+      {result && (
+        <Alert severity={result.ok ? 'success' : 'error'} sx={{ mb: 1.5 }} onClose={() => setResult(null)}>
+          {result.msg}
+        </Alert>
+      )}
+
+      {/* 버튼 */}
+      <Box sx={{ display: 'flex', gap: 1 }}>
+        <Button
+          variant="outlined"
+          color="warning"
+          size="small"
+          onClick={handleReset}
+          disabled={isPending}
+          sx={{ flex: 1 }}
+        >
+          {resetMutation.isPending ? '초기화 중...' : '플래그 초기화'}
+        </Button>
+        <Button
+          variant="contained"
+          color="success"
+          size="small"
+          onClick={handleRun}
+          disabled={!selectedLoc || isPending}
+          sx={{ flex: 1 }}
+        >
+          {selectMutation.isPending ? '진행 중...' : '스프링 캠프 실행'}
+        </Button>
+      </Box>
+
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+        초기화: SPRING_CAMP_DONE=0, CUR_DT=2/1 &nbsp;|&nbsp; 실행: 선수 성장 + 이벤트 생성 + CUR_DT=3/15
+      </Typography>
+    </Paper>
   )
 }
 
@@ -813,6 +933,7 @@ export default function DevPage() {
             </Button>
           </Paper>
           <SpringCampCfgCard />
+          <SpringCampTestCard />
         </Box>
       )}
 

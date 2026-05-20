@@ -86,12 +86,16 @@ public class SpringCampService {
         LocalDate march15 = LocalDate.of(ssntYr, 3, 15);
         jdbcTemplate.update("UPDATE SSNT SET CUR_DT=? WHERE SSNT_YR=?", march15.toString(), ssntYr);
 
-        // 유저 팀: GRWTH 이벤트 + RCNF 이벤트 생성
-        createGrwthEvnt(ssntYr, march15.toString(), userTmId, loc, grownPlayerCount, totalGrowthCount);
-        createRcnfEvnt(ssntYr, march15.toString(), userTmId);
+        // AI 팀 스프링 캠프 자동 선택 (전 구단 요약 라인 반환)
+        String userTmNm = findTeamName(userTmId);
+        List<String> aiSummaryLines = runAiCamps(ssntYr, curDt, userTmId);
 
-        // AI 팀 스프링 캠프 자동 선택
-        runAiCamps(ssntYr, curDt, userTmId);
+        // 전 구단 캠프 선택 현황 이벤트 — 1개
+        createCampSelEvnt(ssntYr, march15.toString(), userTmId, userTmNm, loc, aiSummaryLines);
+
+        // 유저 팀 성장 상세 이벤트 + 1군 로스터 확정 요청 이벤트
+        createGrwthEvnt(ssntYr, march15.toString(), curDt, userTmId, loc, grownPlayerCount, totalGrowthCount);
+        createRcnfEvnt(ssntYr, march15.toString(), userTmId);
 
         log.info("스프링 캠프 완료: tmId={} loc={} 선수={}명 성장선수={}명 총성장={}회",
                 userTmId, loc.getCampNm(), players.size(), grownPlayerCount, totalGrowthCount);
@@ -188,12 +192,17 @@ public class SpringCampService {
         return rnd.nextInt(maxAllowed) + 1;
     }
 
-    private void runAiCamps(int ssntYr, String curDt, Long userTmId) {
-        List<Map<String, Object>> allTms = jdbcTemplate.queryForList("SELECT TM_ID FROM TM ORDER BY TM_ID");
+    /** AI 팀 스프링 캠프 자동 선택 — 각 팀 선택 요약 라인 반환 */
+    private List<String> runAiCamps(int ssntYr, String curDt, Long userTmId) {
+        List<Map<String, Object>> allTms = jdbcTemplate.queryForList(
+            "SELECT TM_ID, TM_KR_NM FROM TM ORDER BY TM_ID");
         List<SpringCampCfgDao> locs = springCampCfgService.findAll(); // TIER 순 정렬
 
+        List<String> summaryLines = new ArrayList<>();
+
         for (Map<String, Object> tm : allTms) {
-            long tmId = toLong(tm.get("TM_ID"));
+            long   tmId = toLong(tm.get("TM_ID"));
+            String tmNm = (String) tm.get("TM_KR_NM");
             if (userTmId != null && tmId == userTmId) continue;
 
             // AI 팀 재정 기반 tier 선택
@@ -226,41 +235,77 @@ public class SpringCampService {
                 "EXPENSE", "SPRING_CAMP", aiLoc.getCost(),
                 aiLoc.getCampNm() + " 스프링 캠프 선택 (Tier " + aiLoc.getTier() + ")");
 
-            // 선수 성장 적용 (AI도 로그 기록)
+            // 선수 성장 적용 (로그는 AI팀도 기록)
             List<Map<String, Object>> players = findTeamPlayers(tmId);
-            int[] growthStats = applyGrowthWithLog(players, aiLoc, ssntYr, curDt, true);
+            applyGrowthWithLog(players, aiLoc, ssntYr, curDt, true);
 
-            // 뉴스 이벤트 생성
-            createCampEvnt(ssntYr, curDt, tmId, aiLoc, players.size(), growthStats[0], growthStats[1]);
+            summaryLines.add(tmNm + " → " + aiLoc.getCampNm() + " (Tier " + aiLoc.getTier() + ")");
         }
+        return summaryLines;
     }
 
-    /** AI 팀용 NEWS 이벤트 생성 */
-    private void createCampEvnt(int ssntYr, String curDt, Long tmId, SpringCampCfgDao loc,
-                                 int plrCnt, int grownPlayerCount, int totalGrowthCount) {
+    /** 전 구단 스프링 캠프 선택 현황 이벤트 — 1개 생성 */
+    private void createCampSelEvnt(int ssntYr, String evntDt, Long userTmId, String userTmNm,
+                                   SpringCampCfgDao userLoc, List<String> aiLines) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("▶ ").append(userTmNm)
+          .append(" → ").append(userLoc.getCampNm())
+          .append(" (Tier ").append(userLoc.getTier()).append(")\n\n");
+        for (String line : aiLines) {
+            sb.append("∙ ").append(line).append("\n");
+        }
         jdbcTemplate.update(
             "INSERT INTO SSNT_EVNT (SSNT_YR, EVNT_DT, TM_ID, EVNT_TYPE_CD, EVNT_TTLT, EVNT_CNTS) " +
             "VALUES (?,?,?,'NEWS',?,?)",
-            ssntYr, curDt, tmId,
-            loc.getCampNm() + " 스프링 캠프 선택",
-            String.format("%s 스프링 캠프를 선택했습니다.\n비용: %,d만원 | 참가 선수: %d명\n" +
-                "성장 선수: %d명 | 총 성장 횟수: %d회",
-                loc.getCampNm(), loc.getCost(), plrCnt, grownPlayerCount, totalGrowthCount));
+            ssntYr, evntDt, userTmId,
+            "전 구단 스프링 캠프 선택 현황",
+            sb.toString().trim());
     }
 
-    /** 유저 팀 성장 완료 이벤트 (GRWTH) */
-    private void createGrwthEvnt(int ssntYr, String evntDt, Long tmId, SpringCampCfgDao loc,
-                                  int grownPlayerCount, int totalGrowthCount) {
-        String cnts = String.format(
-            "스프링 캠프 성장 결과 요약\n캠프: %s (Tier %d)\n성장 선수: %d명 / 총 성장 횟수: %d",
-            loc.getCampNm(), loc.getTier(), grownPlayerCount, totalGrowthCount);
+    /** 유저 팀 성장 완료 이벤트 (GRWTH) — PLR_GRWTH_LOG 기반 선수별 상세 포함 */
+    private void createGrwthEvnt(int ssntYr, String evntDt, String grwthDt, Long tmId,
+                                  SpringCampCfgDao loc, int grownPlayerCount, int totalGrowthCount) {
+        // 유저 팀 선수의 당일 성장 로그 조회
+        List<Map<String, Object>> logs = jdbcTemplate.queryForList(
+            "SELECT p.PLR_NM, l.ABLT_CD, l.ABLT_VAL_BFR, l.ABLT_VAL_AFT " +
+            "FROM PLR_GRWTH_LOG l JOIN PLR p ON p.PLR_ID = l.PLR_ID " +
+            "WHERE p.TM_ID = ? AND l.SSNT_YR = ? AND l.GRWTH_DT = ? AND l.GRWTH_TYPE = 'SPRING_CAMP' " +
+            "ORDER BY p.PLR_NM, l.ABLT_CD",
+            tmId, ssntYr, grwthDt);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("캠프: ").append(loc.getCampNm()).append(" (Tier ").append(loc.getTier()).append(")\n");
+        sb.append("성장 선수: ").append(grownPlayerCount).append("명 / 총 성장 횟수: ").append(totalGrowthCount).append("회");
+
+        if (!logs.isEmpty()) {
+            sb.append("\n\n─── 선수별 성장 상세 ───\n");
+            String curPlr = null;
+            List<String> changes = new ArrayList<>();
+            for (Map<String, Object> log : logs) {
+                String plrNm  = (String) log.get("PLR_NM");
+                String abltCd = (String) log.get("ABLT_CD");
+                int    bfr    = toInt(log.get("ABLT_VAL_BFR"));
+                int    aft    = toInt(log.get("ABLT_VAL_AFT"));
+                if (!plrNm.equals(curPlr)) {
+                    if (curPlr != null) {
+                        sb.append(curPlr).append(": ").append(String.join(", ", changes)).append("\n");
+                    }
+                    curPlr  = plrNm;
+                    changes = new ArrayList<>();
+                }
+                changes.add(abltCd + " " + bfr + "→" + aft);
+            }
+            if (curPlr != null) {
+                sb.append(curPlr).append(": ").append(String.join(", ", changes)).append("\n");
+            }
+        }
 
         jdbcTemplate.update(
             "INSERT INTO SSNT_EVNT (SSNT_YR, EVNT_DT, TM_ID, EVNT_TYPE_CD, EVNT_TTLT, EVNT_CNTS) " +
             "VALUES (?,?,?,'GRWTH',?,?)",
             ssntYr, evntDt, tmId,
             "스프링 캠프 선수 성장 완료",
-            cnts);
+            sb.toString().trim());
     }
 
     /** 1군 로스터 확정 요청 이벤트 (RCNF) */
@@ -271,6 +316,13 @@ public class SpringCampService {
             ssntYr, evntDt, tmId,
             "1군 로스터 확정 필요",
             "3월 15일이 되었습니다. 정규시즌 시작 전 1군 로스터를 확정해주세요.");
+    }
+
+    private String findTeamName(long tmId) {
+        try {
+            return jdbcTemplate.queryForObject(
+                "SELECT TM_KR_NM FROM TM WHERE TM_ID=?", String.class, tmId);
+        } catch (Exception e) { return "우리팀"; }
     }
 
     private List<Map<String, Object>> findTeamPlayers(long tmId) {

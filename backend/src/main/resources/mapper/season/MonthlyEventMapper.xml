@@ -292,29 +292,30 @@
           AND MON = #{mon}
     </select>
 
-    <!-- ===== Step 5: 팀 MKT 조회 ===== -->
+    <!-- ===== Step 5: 팀 만족도 조회 (TM_FAN_PRPNST / TM_OWN_PRPNST 기준) ===== -->
     <select id="findTeamMktSsnt" resultType="map">
         SELECT
-            TM_ID,
-            COALESCE(FAN_STSFCTN, 50)  AS FAN_STSFCTN,
-            COALESCE(OWN_STSFCTN, 50)  AS OWN_STSFCTN,
-            COALESCE(FAN_LYLTY, 50)    AS FAN_LYLTY
-        FROM TM_MKT_SSNT
-        WHERE SSNT_YR = #{ssntYr}
+            M.TM_ID,
+            COALESCE(F.FAN_SATISFACTION,    50) AS FAN_STSFCTN,
+            COALESCE(O.CURRENT_SATISFACTION, 50) AS OWN_STSFCTN,
+            COALESCE(M.FAN_LYLTY,           50) AS FAN_LYLTY
+        FROM  TM_MKT_SSNT    M
+        LEFT JOIN TM_FAN_PRPNST F ON F.TM_ID = M.TM_ID
+        LEFT JOIN TM_OWN_PRPNST O ON O.TM_ID = M.TM_ID
+        WHERE M.SSNT_YR = #{ssntYr}
     </select>
 
-    <!-- ===== Step 5: TM_MKT_SSNT UPSERT ===== -->
-    <insert id="upsertTmMktSsntBatch">
-        INSERT INTO TM_MKT_SSNT
-            (TM_ID, SSNT_YR, FAN_STSFCTN, OWN_STSFCTN)
-        VALUES
-        <foreach collection="list" item="r" separator=",">
-            (#{r.tmId}, #{r.ssntYr}, #{r.fanStsfctn}, #{r.ownStsfctn})
+    <!-- ===== Step 5: 팀 만족도 배치 갱신 ===== -->
+    <update id="upsertTmMktSsntBatch">
+        <foreach collection="list" item="r" separator=";">
+            UPDATE TM_FAN_PRPNST
+               SET FAN_SATISFACTION      = LEAST(80, GREATEST(20, #{r.fanStsfctn}))
+             WHERE TM_ID = #{r.tmId};
+            UPDATE TM_OWN_PRPNST
+               SET CURRENT_SATISFACTION  = LEAST(80, GREATEST(20, #{r.ownStsfctn}))
+             WHERE TM_ID = #{r.tmId}
         </foreach>
-        ON DUPLICATE KEY UPDATE
-            FAN_STSFCTN = VALUES(FAN_STSFCTN),
-            OWN_STSFCTN = VALUES(OWN_STSFCTN)
-    </insert>
+    </update>
 
     <!-- ===== Step 4: 계약된 방송국 승리 수당 조회 ===== -->
     <!-- GAME_CFG → BRDCST_SPNSR 조인으로 현재 계약 방송국의 WIN_BONUS 반환 -->

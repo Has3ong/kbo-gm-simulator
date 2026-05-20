@@ -124,11 +124,10 @@ public class WeeklyEventService {
     private void recoverFatigueCondition(int ssntYr) {
         // 모든 활동 선수 피로도 감소, 컨디션 증가
         jdbcTemplate.update(
-                "UPDATE PLR_FATG_COND FC " +
-                "JOIN PLR P ON P.PLR_ID = FC.PLR_ID " +
-                "SET FC.FATG = GREATEST(0, FC.FATG - 15), " +
-                "    FC.COND = LEAST(100, FC.COND + 10) " +
-                "WHERE FC.SSNT_YR = ? AND P.PLR_STTS_CD = 'AT'",
+                "UPDATE PLR_FATG_COND " +
+                "SET FATG = GREATEST(0, CAST(FATG AS SIGNED) - 15), " +
+                "    `COND` = LEAST(100, `COND` + 10) " +
+                "WHERE SSNT_YR = ?",
                 ssntYr);
         log.debug("주간 피로도/컨디션 회복 완료");
     }

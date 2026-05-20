@@ -18,6 +18,36 @@
         ORDER BY G.GAME_ID
     </select>
 
+    <!-- ===== 선발투수 능력치 (PLR_ID 직접 지정) ===== -->
+    <select id="findSpAbilitiesByPlrId" resultType="map">
+        SELECT P.PLR_ID, P.PLR_NM,
+               MAX(CASE WHEN PA.ABLT_CD = 'VEL' THEN PA.ABLT_VAL END) AS VEL,
+               MAX(CASE WHEN PA.ABLT_CD = 'CTL' THEN PA.ABLT_VAL END) AS CTL,
+               MAX(CASE WHEN PA.ABLT_CD = 'STM' THEN PA.ABLT_VAL END) AS STM
+        FROM   PLR P
+               JOIN PLR_ABLT PA ON PA.PLR_ID = P.PLR_ID
+        WHERE  P.PLR_ID = #{plrId}
+          AND  PA.ABLT_CD IN ('VEL', 'CTL', 'STM')
+        GROUP BY P.PLR_ID, P.PLR_NM
+    </select>
+
+    <!-- ===== 팀 로테이션 투수 목록 (선발 교체용) ===== -->
+    <select id="findRotationPitchersByTeam" resultType="map">
+        SELECT R.ROT_ORD, R.PLR_ID, P.PLR_NM, P.PLR_OVRL_ABLT,
+               MAX(CASE WHEN PA.ABLT_CD = 'VEL' THEN PA.ABLT_VAL END) AS VEL,
+               MAX(CASE WHEN PA.ABLT_CD = 'CTL' THEN PA.ABLT_VAL END) AS CTL,
+               MAX(CASE WHEN PA.ABLT_CD = 'STM' THEN PA.ABLT_VAL END) AS STM
+        FROM   TM_ROTATION R
+               JOIN PLR P ON P.PLR_ID = R.PLR_ID
+               JOIN PLR_ABLT PA ON PA.PLR_ID = R.PLR_ID
+                   AND PA.ABLT_CD IN ('VEL', 'CTL', 'STM')
+        WHERE  R.TM_ID   = #{tmId}
+          AND  R.SSNT_YR = #{ssntYr}
+          AND  P.PLR_STTS_CD = 'AT'
+        GROUP BY R.ROT_ORD, R.PLR_ID, P.PLR_NM, P.PLR_OVRL_ABLT
+        ORDER BY R.ROT_ORD
+    </select>
+
     <!-- ===== 팀 라인업 ===== -->
     <select id="findLineup" resultType="map">
         SELECT L.PLR_ID, L.LINEUP_NO, L.POSN_CD,
@@ -70,6 +100,26 @@
           AND  PA.ABLT_CD IN ('VEL', 'CTL', 'STM')
         GROUP BY B.PLR_ID, B.ROLE_CD, P.PLR_NM
         ORDER BY FIELD(B.ROLE_CD, 'MR', 'SU', 'CL')
+    </select>
+
+    <!-- ===== 1군 확정 로스터 투수 전체 (랜덤 순서, SP→RP→CP 구성용) ===== -->
+    <select id="findEntrantPitchersWithAbilities" resultType="map">
+        SELECT pe.PLR_ID, P.PLR_NM, P.PLR_OVRL_ABLT,
+               MAX(CASE WHEN PA.ABLT_CD = 'VEL' THEN PA.ABLT_VAL END) AS VEL,
+               MAX(CASE WHEN PA.ABLT_CD = 'CTL' THEN PA.ABLT_VAL END) AS CTL,
+               MAX(CASE WHEN PA.ABLT_CD = 'STM' THEN PA.ABLT_VAL END) AS STM
+        FROM   PLR_ENTY pe
+               JOIN PLR P ON P.PLR_ID = pe.PLR_ID
+               JOIN PLR_TM_CNTRCT C ON C.PLR_ID = pe.PLR_ID
+                   AND (C.FA_CNTRCT_END_DT &gt;= CURDATE() OR C.FA_CNTRCT_END_DT IS NULL)
+               JOIN PLR_ABLT PA ON PA.PLR_ID = pe.PLR_ID
+                   AND PA.ABLT_CD IN ('VEL', 'CTL', 'STM')
+        WHERE  pe.TM_ID   = #{tmId}
+          AND  pe.ENTY_LVL_CD = '1'
+          AND  C.REPR_POSN_CD = '10'
+          AND  P.PLR_STTS_CD  = 'AT'
+        GROUP BY pe.PLR_ID, P.PLR_NM, P.PLR_OVRL_ABLT
+        ORDER BY RAND()
     </select>
 
     <!-- ===== 선발 로테이션 (레거시) ===== -->

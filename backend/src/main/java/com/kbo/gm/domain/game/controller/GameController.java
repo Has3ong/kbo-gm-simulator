@@ -36,4 +36,11 @@ public class GameController {
     public ApiResponse<Map<String, Object>> getGameRecords(@PathVariable Long gameId) {
         return ApiResponse.ok(gameService.findRecords(gameId));
     }
+
+    @GetMapping("/rotation")
+    public ApiResponse<List<Map<String, Object>>> getRotation(
+            @RequestParam Long tmId,
+            @RequestParam Integer ssntYr) {
+        return ApiResponse.ok(gameService.findRotationPitchersByTeam(tmId, ssntYr));
+    }
 }

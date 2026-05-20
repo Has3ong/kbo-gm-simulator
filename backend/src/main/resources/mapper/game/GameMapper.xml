@@ -44,6 +44,23 @@
         WHERE G.GAME_ID = #{gameId}
     </select>
 
+    <!-- ===== 팀 로테이션 투수 목록 ===== -->
+    <select id="findRotationPitchersByTeam" resultType="map">
+        SELECT R.ROT_ORD, R.PLR_ID, P.PLR_NM, P.PLR_OVRL_ABLT,
+               MAX(CASE WHEN PA.ABLT_CD = 'VEL' THEN PA.ABLT_VAL END) AS VEL,
+               MAX(CASE WHEN PA.ABLT_CD = 'CTL' THEN PA.ABLT_VAL END) AS CTL,
+               MAX(CASE WHEN PA.ABLT_CD = 'STM' THEN PA.ABLT_VAL END) AS STM
+        FROM   TM_ROTATION R
+               JOIN PLR P ON P.PLR_ID = R.PLR_ID
+               JOIN PLR_ABLT PA ON PA.PLR_ID = R.PLR_ID
+                   AND PA.ABLT_CD IN ('VEL', 'CTL', 'STM')
+        WHERE  R.TM_ID   = #{tmId}
+          AND  R.SSNT_YR = #{ssntYr}
+          AND  P.PLR_STTS_CD = 'AT'
+        GROUP BY R.ROT_ORD, R.PLR_ID, P.PLR_NM, P.PLR_OVRL_ABLT
+        ORDER BY R.ROT_ORD
+    </select>
+
 
     <!-- ===== 경기 타자 기록 ===== -->
     <select id="findBatterRecords" resultType="map">

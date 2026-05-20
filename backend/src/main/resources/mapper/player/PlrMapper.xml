@@ -248,11 +248,11 @@
     </select>
 
     <insert id="upsertFatgCond">
-        INSERT INTO PLR_FATG_COND (PLR_ID, SSNT_YR, FATG, COND)
+        INSERT INTO PLR_FATG_COND (PLR_ID, SSNT_YR, FATG, `COND`)
         VALUES (#{plrId}, #{ssntYr}, #{fatg}, #{cond})
         ON DUPLICATE KEY UPDATE
             FATG   = #{fatg},
-            COND   = #{cond},
+            `COND` = #{cond},
             UPD_DT = CURRENT_TIMESTAMP
     </insert>
 

@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/dev")
@@ -26,6 +27,19 @@ public class DevController {
     @PutMapping("/facility-costs")
     public ApiResponse<Void> updateFcltyCosts(@RequestBody FcltyCostUpdateRequest req) {
         devService.updateFcltyCosts(req);
+        return ApiResponse.ok(null);
+    }
+
+    /** 스프링 캠프 현재 상태 조회 */
+    @GetMapping("/spring-camp/status")
+    public ApiResponse<Map<String, Object>> getSpringCampStatus() {
+        return ApiResponse.ok(devService.getSpringCampStatus());
+    }
+
+    /** 스프링 캠프 플래그 초기화 (CUR_DT → 2월 1일) */
+    @PostMapping("/spring-camp/reset")
+    public ApiResponse<Void> resetSpringCamp() {
+        devService.resetSpringCamp();
         return ApiResponse.ok(null);
     }
 }
